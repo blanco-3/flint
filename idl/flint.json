@@ -1,0 +1,466 @@
+{
+  "address": "5ZBavnDgcW1wnhKEiGp8KbQSHq4PcdVVosUcEX1m4bFt",
+  "metadata": {
+    "name": "flint",
+    "version": "0.1.0",
+    "spec": "0.1.0"
+  },
+  "instructions": [
+    {
+      "name": "submit_intent",
+      "discriminator": [
+        159,
+        255,
+        153,
+        9,
+        149,
+        139,
+        73,
+        112
+      ],
+      "accounts": [
+        {
+          "name": "user",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "input_mint"
+        },
+        {
+          "name": "output_mint"
+        },
+        {
+          "name": "user_token_account",
+          "writable": true
+        },
+        {
+          "name": "escrow_token_account",
+          "writable": true
+        },
+        {
+          "name": "intent",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  105,
+                  110,
+                  116,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "user"
+              },
+              {
+                "kind": "arg",
+                "path": "nonce"
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJe1bmd"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "rent",
+          "address": "SysvarRent111111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "input_amount",
+          "type": "u64"
+        },
+        {
+          "name": "min_output_amount",
+          "type": "u64"
+        },
+        {
+          "name": "nonce",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "submit_bid",
+      "discriminator": [
+        19,
+        164,
+        237,
+        254,
+        64,
+        139,
+        237,
+        93
+      ],
+      "accounts": [
+        {
+          "name": "solver",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "intent",
+          "writable": true
+        },
+        {
+          "name": "bid",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  105,
+                  100
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "intent"
+              },
+              {
+                "kind": "account",
+                "path": "solver"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "output_amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "settle_auction",
+      "discriminator": [
+        246,
+        196,
+        183,
+        98,
+        222,
+        139,
+        46,
+        133
+      ],
+      "accounts": [
+        {
+          "name": "solver",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "intent",
+          "writable": true
+        },
+        {
+          "name": "winning_bid",
+          "writable": true
+        },
+        {
+          "name": "escrow_token_account",
+          "writable": true
+        },
+        {
+          "name": "solver_input_token_account",
+          "writable": true
+        },
+        {
+          "name": "solver_output_token_account",
+          "writable": true
+        },
+        {
+          "name": "user_output_token_account",
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJe1bmd"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    }
+  ],
+  "accounts": [
+    {
+      "name": "IntentAccount",
+      "discriminator": [
+        247,
+        124,
+        161,
+        252,
+        52,
+        195,
+        5,
+        3
+      ]
+    },
+    {
+      "name": "BidAccount",
+      "discriminator": [
+        27,
+        161,
+        15,
+        114,
+        230,
+        126,
+        56,
+        104
+      ]
+    },
+    {
+      "name": "SolverRegistryAccount",
+      "discriminator": [
+        59,
+        23,
+        114,
+        155,
+        200,
+        182,
+        228,
+        217
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "ZeroAmount",
+      "msg": "수량은 0보다 커야 합니다"
+    },
+    {
+      "code": 6001,
+      "name": "IntentNotOpen",
+      "msg": "인텐트가 Open 상태가 아닙니다"
+    },
+    {
+      "code": 6002,
+      "name": "AuctionClosed",
+      "msg": "경매 창이 닫혔습니다"
+    },
+    {
+      "code": 6003,
+      "name": "AuctionStillOpen",
+      "msg": "경매 창이 아직 열려 있습니다"
+    },
+    {
+      "code": 6004,
+      "name": "BidBelowMinimum",
+      "msg": "입찰 금액이 최소 output 미만입니다"
+    },
+    {
+      "code": 6005,
+      "name": "BidNotHigherThanBest",
+      "msg": "입찰 금액이 현재 최고가 이하입니다"
+    },
+    {
+      "code": 6006,
+      "name": "NoBidsReceived",
+      "msg": "입찰이 없습니다"
+    },
+    {
+      "code": 6007,
+      "name": "NotWinningBid",
+      "msg": "낙찰 입찰이 아닙니다"
+    },
+    {
+      "code": 6008,
+      "name": "AlreadySettled",
+      "msg": "이미 정산된 입찰입니다"
+    },
+    {
+      "code": 6009,
+      "name": "InsufficientStake",
+      "msg": "담보금이 최소 요건에 미달합니다"
+    },
+    {
+      "code": 6010,
+      "name": "SolverAlreadyRegistered",
+      "msg": "솔버가 이미 등록되어 있습니다"
+    }
+  ],
+  "types": [
+    {
+      "name": "IntentStatus",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Open"
+          },
+          {
+            "name": "Filled"
+          },
+          {
+            "name": "Expired"
+          },
+          {
+            "name": "Cancelled"
+          }
+        ]
+      }
+    },
+    {
+      "name": "IntentAccount",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "user",
+            "type": "pubkey"
+          },
+          {
+            "name": "input_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "output_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "input_amount",
+            "type": "u64"
+          },
+          {
+            "name": "min_output_amount",
+            "type": "u64"
+          },
+          {
+            "name": "open_at_slot",
+            "type": "u64"
+          },
+          {
+            "name": "close_at_slot",
+            "type": "u64"
+          },
+          {
+            "name": "best_bid_amount",
+            "type": "u64"
+          },
+          {
+            "name": "winning_bid",
+            "type": {
+              "option": "pubkey"
+            }
+          },
+          {
+            "name": "status",
+            "type": {
+              "defined": {
+                "name": "IntentStatus"
+              }
+            }
+          },
+          {
+            "name": "nonce",
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "BidAccount",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "solver",
+            "type": "pubkey"
+          },
+          {
+            "name": "intent",
+            "type": "pubkey"
+          },
+          {
+            "name": "output_amount",
+            "type": "u64"
+          },
+          {
+            "name": "submitted_at_slot",
+            "type": "u64"
+          },
+          {
+            "name": "is_settled",
+            "type": "bool"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "SolverRegistryAccount",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "solver",
+            "type": "pubkey"
+          },
+          {
+            "name": "stake_amount",
+            "type": "u64"
+          },
+          {
+            "name": "total_bids",
+            "type": "u64"
+          },
+          {
+            "name": "total_fills",
+            "type": "u64"
+          },
+          {
+            "name": "reputation_score",
+            "type": "u64"
+          },
+          {
+            "name": "registered_at_slot",
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    }
+  ]
+}
