@@ -40,4 +40,13 @@ pub enum FlintError {
 
     #[msg("솔버가 이미 등록되어 있습니다")]
     SolverAlreadyRegistered,
+
+    #[msg("경매가 아직 종료되지 않았습니다")]
+    AuctionNotYetClosed,
+
+    #[msg("이미 정산된 입찰은 슬래싱할 수 없습니다")]
+    BidAlreadySettled,
+
+    #[msg("슬래싱 조건이 충족되지 않았습니다")]
+    SlashConditionNotMet,
 }

@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use solana_client::rpc_client::RpcClient;
+use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::{
     instruction::{AccountMeta, Instruction},
     pubkey::Pubkey,
@@ -35,6 +35,7 @@ pub async fn place_bid(
 
     let recent_blockhash = client
         .get_latest_blockhash()
+        .await
         .context("failed to fetch recent blockhash")?;
     let transaction = Transaction::new_signed_with_payer(
         &[instruction],
@@ -45,6 +46,7 @@ pub async fn place_bid(
 
     client
         .send_and_confirm_transaction(&transaction)
+        .await
         .context("failed to send submit_bid transaction")
 }
 

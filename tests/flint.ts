@@ -393,29 +393,75 @@ describe("flint", () => {
     assert.equal(userInputAfter, userInputBefore);
   });
 
-  it("낙찰 솔버가 슬래싱된다", async () => {
-    const [intentPda] = PublicKey.findProgramAddressSync(
+  it("낙찰 솔버가 슬래싱된다 (미정산 케이스)", async () => {
+    const slashNonce = new BN(Date.now() + 2);
+    const [slashIntentPda] = PublicKey.findProgramAddressSync(
       [
         Buffer.from("intent"),
         user.publicKey.toBuffer(),
-        NONCE.toArrayLike(Buffer, "le", 8),
+        slashNonce.toArrayLike(Buffer, "le", 8),
       ],
       programId
     );
-
-    const [bidPda] = PublicKey.findProgramAddressSync(
-      [Buffer.from("bid"), intentPda.toBuffer(), solver.publicKey.toBuffer()],
+    const [slashBidPda] = PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("bid"),
+        slashIntentPda.toBuffer(),
+        solver.publicKey.toBuffer(),
+      ],
       programId
     );
-
+    const slashEscrowAta = await getAssociatedTokenAddress(
+      inputMint,
+      slashIntentPda,
+      true
+    );
     const [solverRegistryPda] = PublicKey.findProgramAddressSync(
       [Buffer.from("solver"), solver.publicKey.toBuffer()],
       programId
     );
 
+    await program.methods
+      .submitIntent(new BN(50_000_000), new BN(45_000_000), slashNonce)
+      .accounts({
+        user: user.publicKey,
+        inputMint,
+        outputMint,
+        userTokenAccount: userInputAta,
+        escrowTokenAccount: slashEscrowAta,
+        intent: slashIntentPda,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+        rent: SYSVAR_RENT_PUBKEY,
+      })
+      .signers([user])
+      .rpc();
+
+    await program.methods
+      .submitBid(new BN(48_000_000))
+      .accounts({
+        solver: solver.publicKey,
+        intent: slashIntentPda,
+        bid: slashBidPda,
+        systemProgram: SystemProgram.programId,
+      })
+      .signers([solver])
+      .rpc();
+
+    const slashIntent = await program.account.intentAccount.fetch(slashIntentPda);
+    const slashCloseAt = slashIntent.closeAtSlot.toNumber();
+    let currentSlot = await provider.connection.getSlot();
+    while (currentSlot <= slashCloseAt) {
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      currentSlot = await provider.connection.getSlot();
+    }
+    console.log("  슬래시 경매 종료. 현재 슬롯:", currentSlot, "종료 슬롯:", slashCloseAt);
+
     const registryBefore = await program.account.solverRegistryAccount.fetch(
       solverRegistryPda
     );
+    const stakeBefore = registryBefore.stakeAmount.toNumber();
 
     const tx = await program.methods
       .slashSolver()
@@ -423,8 +469,8 @@ describe("flint", () => {
         authority: provider.wallet.publicKey,
         solver: solver.publicKey,
         solverRegistry: solverRegistryPda,
-        intent: intentPda,
-        winningBid: bidPda,
+        intent: slashIntentPda,
+        winningBid: slashBidPda,
         systemProgram: SystemProgram.programId,
       })
       .rpc();
@@ -434,17 +480,16 @@ describe("flint", () => {
     const registryAfter = await program.account.solverRegistryAccount.fetch(
       solverRegistryPda
     );
+    const stakeAfter = registryAfter.stakeAmount.toNumber();
+    const expectedSlash = Math.floor((stakeBefore * 2000) / 10000);
+    const expectedRemaining = stakeBefore - expectedSlash;
+
+    assert.equal(stakeAfter, expectedRemaining, "스테이크가 20% 삭감되어야 함");
     assert.equal(
-      registryAfter.stakeAmount.toString(),
-      new BN(registryBefore.stakeAmount.toString())
-        .mul(new BN(8))
-        .div(new BN(10))
-        .toString()
+      registryAfter.reputationScore.toNumber(),
+      registryBefore.reputationScore.toNumber() - 100,
+      "평판 점수가 100 감소해야 함"
     );
-    assert.equal(
-      BigInt(registryBefore.reputationScore.toString()) -
-        BigInt(registryAfter.reputationScore.toString()),
-      BigInt(100)
-    );
+    console.log("  슬래시 전 스테이크:", stakeBefore, "후:", stakeAfter);
   });
 });

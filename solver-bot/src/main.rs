@@ -6,7 +6,7 @@ use std::{path::PathBuf, str::FromStr, time::Duration};
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
-use solana_client::rpc_client::RpcClient;
+use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::{
     pubkey::Pubkey,
     signature::{read_keypair_file, Signer},
@@ -51,7 +51,10 @@ async fn main() -> Result<()> {
 
     match cli.command {
         Command::Status => {
-            let slot = client.get_slot().context("failed to fetch current slot")?;
+            let slot = client
+                .get_slot()
+                .await
+                .context("failed to fetch current slot")?;
             info!(
                 rpc = %cli.rpc,
                 payer = %payer.pubkey(),

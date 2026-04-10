@@ -474,6 +474,21 @@
       "code": 6012,
       "name": "SolverAlreadyRegistered",
       "msg": "솔버가 이미 등록되어 있습니다"
+    },
+    {
+      "code": 6013,
+      "name": "AuctionNotYetClosed",
+      "msg": "경매가 아직 종료되지 않았습니다"
+    },
+    {
+      "code": 6014,
+      "name": "BidAlreadySettled",
+      "msg": "이미 정산된 입찰은 슬래싱할 수 없습니다"
+    },
+    {
+      "code": 6015,
+      "name": "SlashConditionNotMet",
+      "msg": "슬래싱 조건이 충족되지 않았습니다"
     }
   ],
   "types": [
