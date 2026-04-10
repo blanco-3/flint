@@ -1,0 +1,359 @@
+:root {
+  color: #ebf2f7;
+  background: #0d1117;
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  line-height: 1.5;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(circle at top left, rgba(29, 78, 216, 0.16), transparent 35%),
+    radial-gradient(circle at top right, rgba(34, 197, 94, 0.12), transparent 30%),
+    #0d1117;
+}
+
+a {
+  color: #7dd3fc;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+.page-shell {
+  width: min(1320px, 100%);
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.hero-band {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 24px;
+  padding: 32px;
+  border: 1px solid rgba(125, 211, 252, 0.16);
+  background: rgba(15, 23, 42, 0.88);
+  border-radius: 8px;
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  color: #60a5fa;
+  text-transform: uppercase;
+  font-size: 0.82rem;
+  letter-spacing: 0.08em;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+h1 {
+  font-size: 2.4rem;
+  line-height: 1.1;
+  margin-bottom: 12px;
+}
+
+h2 {
+  font-size: 1.3rem;
+  margin-bottom: 4px;
+}
+
+h3 {
+  font-size: 1rem;
+}
+
+.lede,
+.section-title p,
+.comparison-card .note,
+.solver-list li,
+.field span,
+.detail-card span,
+.metric-card span,
+.stat-card span,
+.link-row span,
+.health-pill {
+  color: #94a3b8;
+}
+
+.hero-metrics,
+.mini-grid,
+.proof-grid,
+.detail-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.hero-metrics,
+.mini-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.metric-card,
+.stat-card,
+.detail-card,
+.comparison-card,
+.panel,
+.request-item,
+.empty-state {
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(15, 23, 42, 0.78);
+  border-radius: 8px;
+}
+
+.metric-card,
+.stat-card,
+.detail-card {
+  padding: 14px;
+}
+
+.metric-card strong,
+.stat-card strong,
+.detail-card strong,
+.comparison-card strong {
+  display: block;
+  margin-top: 8px;
+  color: #f8fafc;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 20px 0;
+}
+
+.mode-button,
+.primary-button {
+  border: 1px solid rgba(125, 211, 252, 0.22);
+  background: rgba(15, 23, 42, 0.84);
+  color: #e2e8f0;
+  padding: 10px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.mode-button.active,
+.primary-button {
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.88), rgba(14, 165, 233, 0.78));
+}
+
+.primary-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.health-pill {
+  margin-left: auto;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.78);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.health-pill.ok {
+  color: #4ade80;
+}
+
+.health-pill.down {
+  color: #f97316;
+}
+
+.content-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.panel {
+  padding: 20px;
+}
+
+.panel.wide {
+  grid-column: 1 / -1;
+}
+
+.section-title {
+  margin-bottom: 16px;
+}
+
+.stack {
+  display: grid;
+  gap: 10px;
+}
+
+.link-row {
+  display: grid;
+  gap: 6px;
+}
+
+.solver-list {
+  margin-top: 16px;
+}
+
+.solver-list ul {
+  margin: 10px 0 0;
+  padding-left: 18px;
+}
+
+.request-form {
+  display: grid;
+  gap: 12px;
+}
+
+.field {
+  display: grid;
+  gap: 6px;
+}
+
+.field input {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: rgba(15, 23, 42, 0.9);
+  color: #f8fafc;
+}
+
+.error-copy {
+  color: #fb7185;
+}
+
+.monitor-layout {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 16px;
+}
+
+.request-list {
+  display: grid;
+  gap: 8px;
+}
+
+.request-item {
+  padding: 14px;
+  text-align: left;
+  cursor: pointer;
+  display: grid;
+  gap: 6px;
+}
+
+.request-item.active {
+  border-color: rgba(96, 165, 250, 0.7);
+}
+
+.request-item strong {
+  color: #f8fafc;
+}
+
+.request-detail {
+  display: grid;
+  gap: 16px;
+}
+
+.timeline {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.timeline-step {
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  background: rgba(15, 23, 42, 0.55);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #94a3b8;
+}
+
+.timeline-step.active {
+  border-color: rgba(74, 222, 128, 0.42);
+  color: #d1fae5;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.detail-grid,
+.proof-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.json-block {
+  margin: 0;
+  padding: 16px;
+  border-radius: 8px;
+  background: rgba(2, 6, 23, 0.9);
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  overflow: auto;
+  font-size: 0.86rem;
+}
+
+.comparison-card {
+  padding: 18px;
+  display: grid;
+  gap: 14px;
+}
+
+.comparison-values {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.comparison-values span {
+  display: block;
+  color: #94a3b8;
+  margin-bottom: 6px;
+}
+
+.improvement {
+  color: #4ade80;
+  font-weight: 600;
+}
+
+.empty-state {
+  padding: 18px;
+  color: #94a3b8;
+}
+
+@media (max-width: 980px) {
+  .hero-band,
+  .content-grid,
+  .monitor-layout,
+  .detail-grid,
+  .proof-grid,
+  .hero-metrics,
+  .mini-grid,
+  .comparison-values,
+  .timeline {
+    grid-template-columns: 1fr;
+  }
+
+  .topbar {
+    flex-wrap: wrap;
+  }
+
+  .health-pill {
+    margin-left: 0;
+  }
+}

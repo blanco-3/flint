@@ -2,6 +2,8 @@
   "license": "ISC",
   "scripts": {
     "benchmark:local": "node scripts/benchmark.js",
+    "console:build": "npm --prefix flint-console run build",
+    "console:dev": "npm --prefix flint-console run dev",
     "relay:start": "node relay/index.js",
     "relay:test": "node --test relay/relay.test.js",
     "sdk:check": "./node_modules/.bin/tsc -p sdk/tsconfig.json",

@@ -1,0 +1,51 @@
+{
+  "requestId": "judge-demo-1",
+  "status": "selected",
+  "selectedQuote": {
+    "quoteId": "quote-solver-b",
+    "solverId": "solver-b",
+    "outputAmount": "1020000",
+    "validUntil": "2026-04-10T13:15:39.386Z",
+    "route": {
+      "venue": "jupiter-ultra"
+    },
+    "quoteSignature": null,
+    "metadata": {},
+    "createdAt": "2026-04-10T13:15:37.406Z"
+  },
+  "executionPlan": {
+    "kernel": "flint-v1",
+    "programId": "5ZBavnDgcW1wnhKEiGp8KbQSHq4PcdVVosUcEX1m4bFt",
+    "requestId": "judge-demo-1",
+    "selectedSolverId": "solver-b",
+    "quoteId": "quote-solver-b",
+    "quoteValidity": {
+      "validUntil": "2026-04-10T13:15:39.386Z",
+      "quoteDeadlineAt": "2026-04-10T13:15:39.386Z"
+    },
+    "quote": {
+      "outputAmount": "1020000",
+      "route": {
+        "venue": "jupiter-ultra"
+      },
+      "quoteSignature": null
+    },
+    "transactionPlan": {
+      "phase1": {
+        "instruction": "submit_intent",
+        "inputMint": "So11111111111111111111111111111111111111112",
+        "outputMint": "USDC111111111111111111111111111111111111111",
+        "inputAmount": "1000000",
+        "minOutputAmount": "990000",
+        "user": "wallet-demo"
+      },
+      "phase2": {
+        "instruction": "submit_bid",
+        "solverRegistryRequired": true,
+        "selectedSolverId": "solver-b"
+      },
+      "terminalPaths": ["settle_auction", "refund_after_timeout"]
+    }
+  },
+  "executionResult": null
+}

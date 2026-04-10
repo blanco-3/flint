@@ -107,6 +107,8 @@ Tracked outputs:
 - `artifacts/benchmark-local.json`
 - `artifacts/benchmark-summary.md`
 - `artifacts/judge-guide.md`
+- `artifacts/sample-selected-quote-response.json`
+- `artifacts/sample-webhook-payload.json`
 
 ## Devnet Smoke
 
@@ -165,6 +167,26 @@ Reference files:
 - `sdk/flint-relay-client.ts`
 - `docs/b2b-integration.md`
 - `docs/operator-runbook.md`
+- `docs/request-state-diagram.md`
+
+## Flint Console
+
+Build the operator shell:
+
+```bash
+npm --prefix flint-console run build
+```
+
+Run it locally:
+
+```bash
+npm --prefix flint-console run dev
+```
+
+Modes:
+
+- **Seeded Judge Mode** — uses tracked devnet and benchmark artifacts
+- **Live Relay Mode** — points at the local relay on `http://127.0.0.1:8787`
 
 ## Economic Model
 

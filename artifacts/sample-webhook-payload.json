@@ -1,0 +1,17 @@
+{
+  "type": "quote_request.selected",
+  "requestId": "judge-demo-1",
+  "status": "selected",
+  "selectedQuote": {
+    "quoteId": "quote-solver-b",
+    "solverId": "solver-b",
+    "outputAmount": "1020000",
+    "validUntil": "2026-04-10T13:15:39.386Z",
+    "route": {
+      "venue": "jupiter-ultra"
+    },
+    "quoteSignature": null,
+    "metadata": {},
+    "createdAt": "2026-04-10T13:15:37.406Z"
+  }
+}
