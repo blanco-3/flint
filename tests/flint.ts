@@ -213,4 +213,89 @@ describe("flint", () => {
 
     console.log("  최고 입찰가:", intentAccount.bestBidAmount.toString());
   });
+
+  it("경매 종료 후 정산한다 (settle_auction)", async () => {
+    const [intentPda] = PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("intent"),
+        user.publicKey.toBuffer(),
+        NONCE.toArrayLike(Buffer, "le", 8),
+      ],
+      programId
+    );
+
+    const [bidPda] = PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("bid"),
+        intentPda.toBuffer(),
+        solver.publicKey.toBuffer(),
+      ],
+      programId
+    );
+
+    const escrowAta = await getAssociatedTokenAddress(
+      inputMint,
+      intentPda,
+      true
+    );
+
+    // 경매 창 종료 대기 (AUCTION_WINDOW_SLOTS=5, 약 2초)
+    const intentAccount = await program.account.intentAccount.fetch(intentPda);
+    const closeAtSlot = intentAccount.closeAtSlot.toNumber();
+    let currentSlot = await provider.connection.getSlot();
+    while (currentSlot <= closeAtSlot) {
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      currentSlot = await provider.connection.getSlot();
+    }
+    console.log("  경매 종료. 현재 슬롯:", currentSlot, "종료 슬롯:", closeAtSlot);
+
+    // 정산 전 잔액
+    const solverInputBefore = BigInt(
+      (await provider.connection.getTokenAccountBalance(solverInputAta)).value.amount
+    );
+    const userOutputBefore = BigInt(
+      (await provider.connection.getTokenAccountBalance(userOutputAta)).value.amount
+    );
+
+    const tx = await program.methods
+      .settleAuction()
+      .accounts({
+        solver: solver.publicKey,
+        intent: intentPda,
+        winningBid: bidPda,
+        escrowTokenAccount: escrowAta,
+        solverInputTokenAccount: solverInputAta,
+        solverOutputTokenAccount: solverOutputAta,
+        userOutputTokenAccount: userOutputAta,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+      })
+      .signers([solver])
+      .rpc();
+
+    console.log("  settle_auction tx:", tx);
+
+    // 상태 검증
+    const intentAfter = await program.account.intentAccount.fetch(intentPda);
+    assert.deepEqual(intentAfter.status, { filled: {} });
+
+    const bidAfter = await program.account.bidAccount.fetch(bidPda);
+    assert.isTrue(bidAfter.isSettled);
+
+    // 토큰 잔액 검증
+    const solverInputAfter = BigInt(
+      (await provider.connection.getTokenAccountBalance(solverInputAta)).value.amount
+    );
+    const userOutputAfter = BigInt(
+      (await provider.connection.getTokenAccountBalance(userOutputAta)).value.amount
+    );
+
+    // 솔버: input 100개 수령, 유저: output 98개 수령
+    assert.equal(solverInputAfter - solverInputBefore, BigInt(100_000_000));
+    assert.equal(userOutputAfter - userOutputBefore, BigInt(98_000_000));
+
+    console.log("  솔버 input 수령:", (solverInputAfter - solverInputBefore).toString());
+    console.log("  유저 output 수령:", (userOutputAfter - userOutputBefore).toString());
+  });
 });
