@@ -1,6 +1,9 @@
 {
   "license": "ISC",
   "scripts": {
+    "benchmark:local": "node scripts/benchmark.js",
+    "demo:happy": "node scripts/demo.js happy",
+    "demo:timeout": "node scripts/demo.js timeout",
     "lint:fix": "prettier */*.js \"*/**/*{.js,.ts}\" -w",
     "lint": "prettier */*.js \"*/**/*{.js,.ts}\" --check"
   },

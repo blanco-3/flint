@@ -58,6 +58,16 @@ pub async fn poll_open_intents(client: &RpcClient, program_id: &Pubkey) -> Vec<I
     }
 }
 
+pub async fn fetch_intent(client: &RpcClient, intent_pda: &Pubkey) -> anyhow::Result<IntentData> {
+    let account = client
+        .get_account(intent_pda)
+        .await
+        .map_err(|error| anyhow::anyhow!("failed to fetch intent {}: {}", intent_pda, error))?;
+
+    parse_intent(*intent_pda, &account.data)
+        .ok_or_else(|| anyhow::anyhow!("failed to decode intent account {}", intent_pda))
+}
+
 fn parse_intent(pda: Pubkey, data: &[u8]) -> Option<IntentData> {
     if data.len() < 8 || data[..8] != INTENT_ACCOUNT_DISCRIMINATOR {
         return None;
