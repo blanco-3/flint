@@ -15,7 +15,7 @@ import { assert } from "chai";
 // IDL 타입은 자동생성 없이 수동 로드
 import { createRequire } from "module";
 const require = createRequire(import.meta.url);
-const idl = require("../idl/flint.json");
+const idl = require("../target/idl/flint.json");
 
 describe("flint", () => {
   const provider = anchor.AnchorProvider.env();
