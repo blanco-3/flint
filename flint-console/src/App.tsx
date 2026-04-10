@@ -828,6 +828,10 @@ function SettingsTab() {
           <span className="settings-value">operator</span>
         </div>
       </div>
+
+      <div className="settings-footer">
+        <span className="settings-tagline">Every intent. Every bid. Every outcome. On-chain verified.</span>
+      </div>
     </div>
   );
 }
