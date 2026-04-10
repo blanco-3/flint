@@ -1,6 +1,7 @@
 [workspace]
 members = [
-    "programs/*"
+    "programs/*",
+    "solver-bot"
 ]
 resolver = "2"
 
