@@ -1,8 +1,16 @@
-# Flint — On-Chain Intent Auction Protocol
+# Flint — Protected Execution API on Solana
 
 ## What is Flint?
 
-Flint is a Solana program for intent-based token swaps. A user submits an intent with locked input tokens and a minimum acceptable output, registered solvers compete during a short auction window, and the winning bid settles atomically so the user receives output tokens while the solver receives the escrowed input tokens in the same on-chain flow.
+Flint is a protected execution backend for wallets, apps, bots, and agentic systems on Solana. A user submits an intent with locked input tokens and a minimum acceptable output, registered solvers compete, and the winning path settles atomically while on-chain slashing, timeout recovery, and rent-return paths keep the lifecycle safe even when execution fails.
+
+## Why Flint
+
+- Registered-solvers-only execution
+- Explicit slash authority through config
+- Timeout recovery so funds do not get stuck
+- Devnet-deployed proof with successful happy-path and timeout-path smoke flows
+- Relay/API alpha for B2B integrations
 
 ## Why Solana?
 
@@ -24,6 +32,13 @@ flowchart LR
     F -->|input refund| U
     F -->|slash bounty| K[Keeper / Caller]
 ```
+
+## Product Surface
+
+- On-chain kernel: escrow, settlement, refund, slash, withdraw
+- Relay/API alpha: off-chain quote requests, solver quotes, selection, status tracking
+- SDK alpha: TypeScript client for quote request, execute, and polling
+- Operator assets: devnet deployment lane, smoke scripts, benchmark artifacts, judge guide
 
 ## Account Structures
 
@@ -91,6 +106,7 @@ Tracked outputs:
 
 - `artifacts/benchmark-local.json`
 - `artifacts/benchmark-summary.md`
+- `artifacts/judge-guide.md`
 
 ## Devnet Smoke
 
@@ -121,6 +137,34 @@ Tracked outputs:
 - `artifacts/devnet-config.json`
 - `artifacts/devnet-smoke-happy.json`
 - `artifacts/devnet-smoke-timeout.json`
+
+## B2B API Alpha
+
+Start the relay:
+
+```bash
+node relay/index.js
+```
+
+Run relay tests:
+
+```bash
+node --test relay/relay.test.js
+```
+
+Key endpoints:
+
+- `POST /quote-request`
+- `POST /solver/quote`
+- `POST /execute`
+- `GET /status/:requestId`
+
+Reference files:
+
+- `relay/openapi.json`
+- `sdk/flint-relay-client.ts`
+- `docs/b2b-integration.md`
+- `docs/operator-runbook.md`
 
 ## Economic Model
 

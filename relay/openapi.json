@@ -1,0 +1,67 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Flint Relay API",
+    "version": "0.1.0-alpha",
+    "description": "Alpha B2B protected execution relay for Flint."
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Health check",
+        "responses": {
+          "200": { "description": "Relay is alive" }
+        }
+      }
+    },
+    "/quote-request": {
+      "post": {
+        "summary": "Create a quote request",
+        "responses": {
+          "201": { "description": "Quote request created" }
+        }
+      }
+    },
+    "/solver/quote": {
+      "post": {
+        "summary": "Submit a solver quote",
+        "responses": {
+          "201": { "description": "Quote accepted" }
+        }
+      }
+    },
+    "/execute": {
+      "post": {
+        "summary": "Select a solver quote and build an execution plan",
+        "responses": {
+          "200": { "description": "Execution plan built" }
+        }
+      }
+    },
+    "/status/{requestId}": {
+      "get": {
+        "summary": "Get request status",
+        "parameters": [
+          {
+            "name": "requestId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Request status" },
+          "404": { "description": "Request not found" }
+        }
+      }
+    },
+    "/quote-requests": {
+      "get": {
+        "summary": "List quote requests",
+        "responses": {
+          "200": { "description": "Requests returned" }
+        }
+      }
+    }
+  }
+}
