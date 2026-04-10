@@ -1,0 +1,16 @@
+{
+  "mode": "timeout",
+  "cluster": "devnet",
+  "programId": "5ZBavnDgcW1wnhKEiGp8KbQSHq4PcdVVosUcEX1m4bFt",
+  "configPda": "6Rw9B5E7MZAe8xtTw4V4QbGB3rq3TBWpFh9rPJqbQcRK",
+  "user": "ApBXHaQNqqGvkqMMNmyo3h52jkWohTENKxxtPuS7sBfD",
+  "solver": "835kM2QVRphrLu7XzJyoh7i2qtkTMrEtx8GXweK3zBc3",
+  "solverRegistry": "8JN2zkFLaPJcerWUjT6BPdFBStx18SmGHwz3abc7jLhz",
+  "intent": "8QeWLJms9BLtMhkyD4CX93u4vPdAgKJRCuCQxnuMYGzr",
+  "winningBid": "7NQAJUxUtwuWYgc91w2kfQpp7iFa9R8R2bLQ9U49jX1y",
+  "registerSignature": "3Gkn7tE6nmW3LyVJ5yJxBuPiPwcWWWys5RjeEsVvHMFSbRmQmPDUMW9ADxMcEq3fjLCbTYD2t1CpgpzrZGQ1ASTQ",
+  "submitIntentSignature": "4XHrzV1qh9yCEdwSZRmGaB3xVJTznyoZA98K263iF6xRNzMhy6ycTXeZgcEu8MiYheHHgU8xXUhcMWxUWqf4afEc",
+  "submitBidSignature": "25oPKMhbaJC6xpfFkFb1vTVMmc9iqyqCekvfSJcV5X9mMqKS83EoYA28dxZSHrNMonL2naxb6aLYNddgQQFXFebQ",
+  "terminalSignature": "4uRxNDyJmd91uToMjx42ojDbnQKLM2uBRL1NU8D372oPgFigkNCFPXw1tfeQKqa1UqEQHBU2jzAgUDYsbmwPk7V6",
+  "terminalExplorer": "https://explorer.solana.com/tx/4uRxNDyJmd91uToMjx42ojDbnQKLM2uBRL1NU8D372oPgFigkNCFPXw1tfeQKqa1UqEQHBU2jzAgUDYsbmwPk7V6?cluster=devnet"
+}

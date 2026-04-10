@@ -51,13 +51,16 @@ flowchart LR
 
 ## Program ID
 
-- Devnet: pending deployment funding; configured program keypair resolves to `5ZBavnDgcW1wnhKEiGp8KbQSHq4PcdVVosUcEX1m4bFt`
+- Devnet: `5ZBavnDgcW1wnhKEiGp8KbQSHq4PcdVVosUcEX1m4bFt`
+- Devnet program explorer: https://explorer.solana.com/address/5ZBavnDgcW1wnhKEiGp8KbQSHq4PcdVVosUcEX1m4bFt?cluster=devnet
+- Devnet deploy tx: https://explorer.solana.com/tx/2BuKRHLBnTzYRsy1uTGghr9XJksdeaCBhmr2ZayYbK4AGb7EMsKzjcCukQUrccUGZAYavZuBWejCfpRMA4Q7Jr7a?cluster=devnet
+- Devnet config init tx: https://explorer.solana.com/tx/2hRnApiohnvN9DzUAAgysBayCgGfiw3ZGJrcG93t7VLGfzBaXJbdyhXJ7M6dnx5dfrCGaaVq1YYXB3xZQMSrVECe?cluster=devnet
 - Localnet: `5ZBavnDgcW1wnhKEiGp8KbQSHq4PcdVVosUcEX1m4bFt`
 
 ## Build & Test
 
 ```bash
-export PATH="/Users/blanco/.cargo/bin:$PATH"
+export PATH="$HOME/.cargo/bin:$PATH"
 ./scripts/build.sh
 ```
 
@@ -70,7 +73,7 @@ cd solver-bot
 cargo build
 ```
 
-## Demo
+## Local Demo
 
 ```bash
 node scripts/demo.js happy
@@ -84,6 +87,41 @@ node scripts/demo.js timeout
 node scripts/benchmark.js
 ```
 
+Tracked outputs:
+
+- `artifacts/benchmark-local.json`
+- `artifacts/benchmark-summary.md`
+
+## Devnet Smoke
+
+```bash
+./scripts/deploy-devnet.sh
+```
+
+```bash
+ANCHOR_PROVIDER_URL=https://api.devnet.solana.com \
+ANCHOR_WALLET="$HOME/.config/solana/id.json" \
+node scripts/devnet-smoke.js happy
+```
+
+```bash
+ANCHOR_PROVIDER_URL=https://api.devnet.solana.com \
+ANCHOR_WALLET="$HOME/.config/solana/id.json" \
+node scripts/devnet-smoke.js timeout
+```
+
+Recent smoke transactions:
+
+- Happy path: https://explorer.solana.com/tx/2kD3Tb46dsjC2PEQcoPmRTMHWRxENV4oVXK2UH1X33Sm18fvGbWRo6MwdM1L8e4D33i31waHjTCnkSiJ6FrzhjS5?cluster=devnet
+- Timeout path: https://explorer.solana.com/tx/4uRxNDyJmd91uToMjx42ojDbnQKLM2uBRL1NU8D372oPgFigkNCFPXw1tfeQKqa1UqEQHBU2jzAgUDYsbmwPk7V6?cluster=devnet
+
+Tracked outputs:
+
+- `artifacts/devnet-deploy.json`
+- `artifacts/devnet-config.json`
+- `artifacts/devnet-smoke-happy.json`
+- `artifacts/devnet-smoke-timeout.json`
+
 ## Economic Model
 
 Solver profit is the spread between the external market execution price and the bid submitted on-chain. Users are protected by `min_output_amount`, solvers compete by improving output, and registered solvers post stake that can be slashed on non-fulfillment to make bad execution economically expensive.
@@ -94,7 +132,7 @@ For the hackathon flow, timeout recovery is explicit: no-bid intents use `cancel
 
 - [x] Week 1: Core program (`submit_intent`, `submit_bid`, `settle_auction`)
 - [x] Week 2: `register_solver`, `cancel_intent`, `slash_solver`, `refund_after_timeout`, config-based authority, rent-return paths, test coverage
-- [ ] Week 2: Devnet funding + deployment
+- [x] Week 2: Devnet deployment + smoke flow
 - [x] Week 3: Solver bot executor paths + Jupiter quote strategy skeleton
 - [x] Week 4: local benchmark artifact
 - [ ] Week 4: benchmark video

@@ -220,17 +220,43 @@ async function main() {
     .rpc();
 
   const min = BigInt(minOutputAmount.toString());
-  const win = BigInt(solverBBid.toString());
-  const improvement = win - min;
-  const improvementBps = Number((improvement * 10_000n) / min);
+  const singleSolverWin = BigInt(solverABid.toString());
+  const twoSolverWin = BigInt(solverBBid.toString());
 
-  console.log(JSON.stringify({
-    mode: "local-benchmark",
-    minOutput: minOutputAmount.toString(),
-    winningOutput: solverBBid.toString(),
-    improvement: improvement.toString(),
-    improvementBps,
-  }, null, 2));
+  const singleImprovement = singleSolverWin - min;
+  const competitiveImprovement = twoSolverWin - min;
+
+  console.log(
+    JSON.stringify(
+      {
+        mode: "local-benchmark",
+        scenarios: [
+          {
+            name: "single-solver-baseline",
+            minOutput: minOutputAmount.toString(),
+            winningOutput: solverABid.toString(),
+            improvement: singleImprovement.toString(),
+            improvementBps: Number((singleImprovement * 10_000n) / min),
+          },
+          {
+            name: "two-solver-competition",
+            minOutput: minOutputAmount.toString(),
+            winningOutput: solverBBid.toString(),
+            improvement: competitiveImprovement.toString(),
+            improvementBps: Number((competitiveImprovement * 10_000n) / min),
+          },
+          {
+            name: "timeout-recovery",
+            minOutput: minOutputAmount.toString(),
+            refundedInput: "100000000",
+            fundsRecovered: true,
+          },
+        ],
+      },
+      null,
+      2
+    )
+  );
 }
 
 main().catch((error) => {

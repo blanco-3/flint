@@ -47,7 +47,6 @@ pub fn handler(ctx: Context<SlashSolver>) -> Result<()> {
     let current_lamports = registry_info.lamports();
     let safe_slash = slash_amount.min(current_lamports.saturating_sub(min_balance));
 
-    // TODO: Replace V1 any-signer authority with governance-controlled slashing.
     **registry_info.try_borrow_mut_lamports()? -= safe_slash;
     **ctx
         .accounts

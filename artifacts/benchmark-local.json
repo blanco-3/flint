@@ -1,0 +1,25 @@
+{
+  "mode": "local-benchmark",
+  "scenarios": [
+    {
+      "name": "single-solver-baseline",
+      "minOutput": "95000000",
+      "winningOutput": "96000000",
+      "improvement": "1000000",
+      "improvementBps": 105
+    },
+    {
+      "name": "two-solver-competition",
+      "minOutput": "95000000",
+      "winningOutput": "98000000",
+      "improvement": "3000000",
+      "improvementBps": 315
+    },
+    {
+      "name": "timeout-recovery",
+      "minOutput": "95000000",
+      "refundedInput": "100000000",
+      "fundsRecovered": true
+    }
+  ]
+}

@@ -2,6 +2,9 @@
   "license": "ISC",
   "scripts": {
     "benchmark:local": "node scripts/benchmark.js",
+    "demo:devnet:happy": "ANCHOR_PROVIDER_URL=https://api.devnet.solana.com ANCHOR_WALLET=$HOME/.config/solana/id.json node scripts/devnet-smoke.js happy",
+    "demo:devnet:timeout": "ANCHOR_PROVIDER_URL=https://api.devnet.solana.com ANCHOR_WALLET=$HOME/.config/solana/id.json node scripts/devnet-smoke.js timeout",
+    "deploy:devnet": "./scripts/deploy-devnet.sh",
     "demo:happy": "node scripts/demo.js happy",
     "demo:timeout": "node scripts/demo.js timeout",
     "lint:fix": "prettier */*.js \"*/**/*{.js,.ts}\" -w",
