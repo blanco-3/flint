@@ -20,6 +20,8 @@ yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts
 
 Do not run `anchor test`. It tries to manage its own validator lifecycle and collides with the externally managed validator on port `8899`.
 
+`scripts/test.sh` upgrades the current build to the local validator before running tests so new instructions are available on-chain.
+
 The validator is expected to be started separately:
 
 ```bash
@@ -54,7 +56,7 @@ list(hashlib.sha256(f"account:{name}".encode()).digest()[:8])
 
 - When adding a new `errors.rs` variant, update the IDL `errors` array in `idl/flint.json` too.
 - Error codes are sequential starting at `6000`.
-- Current last error code: `6012` (`SolverAlreadyRegistered`).
+- Current last error code: `6016` (`RefundGracePeriodNotElapsed`).
 
 ## PDA Seeds
 

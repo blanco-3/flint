@@ -39,3 +39,6 @@ pub enum IntentStatus {
 
 /// 경매 창: 5슬롯 (약 2초)
 pub const AUCTION_WINDOW_SLOTS: u64 = 5;
+
+/// 미정산 낙찰 환불 grace: 10슬롯
+pub const REFUND_GRACE_SLOTS: u64 = 10;

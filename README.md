@@ -18,9 +18,11 @@ flowchart LR
     S -->|submit_bid| B[BidAccount PDA]
     I -->|winning_bid| B
     B -->|settle_auction| X[Atomic Swap]
+    B -->|timeout + refund_after_timeout| F[Refund + Slash]
     E -->|input tokens| S
     S -->|output tokens| U
-    A[Authority / Governance] -->|slash_solver| R
+    F -->|input refund| U
+    F -->|slash bounty| K[Keeper / Caller]
 ```
 
 ## Account Structures
@@ -40,6 +42,7 @@ flowchart LR
 | `settle_auction` | Settles the winning auction atomically: escrow to solver, solver output to user | Solver bot / anyone |
 | `register_solver` | Creates a solver registry PDA and escrows the minimum stake in lamports | Solver |
 | `cancel_intent` | Refunds the user after the auction window closes with no bids | User |
+| `refund_after_timeout` | Refunds the user after a winning bid is left unfilled past the grace period and slashes solver stake | Keeper / anyone |
 | `slash_solver` | Slashes 20% of a registered solver stake after failed fulfillment | Authority / governance |
 
 ## Program ID
@@ -70,10 +73,12 @@ cargo build
 
 Solver profit is the spread between the external market execution price and the bid submitted on-chain. Users are protected by `min_output_amount`, solvers compete by improving output, and registered solvers post stake that can be slashed on non-fulfillment to make bad execution economically expensive.
 
+For the hackathon flow, timeout recovery is explicit: no-bid intents use `cancel_intent`, while winning-but-unfilled intents use `refund_after_timeout` so escrowed funds do not remain stuck.
+
 ## Roadmap
 
 - [x] Week 1: Core program (`submit_intent`, `submit_bid`, `settle_auction`)
-- [x] Week 2: `register_solver`, `cancel_intent`, `slash_solver`, test coverage
+- [x] Week 2: `register_solver`, `cancel_intent`, `slash_solver`, `refund_after_timeout`, test coverage
 - [ ] Week 2: Devnet funding + deployment
 - [ ] Week 3: Solver bot (Jupiter integration), event monitoring
 - [ ] Week 4: CLI demo, benchmark video

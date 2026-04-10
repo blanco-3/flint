@@ -43,7 +43,10 @@ pub async fn poll_open_intents(client: &RpcClient, program_id: &Pubkey) -> Vec<I
         ..RpcProgramAccountsConfig::default()
     };
 
-    match client.get_program_accounts_with_config(program_id, config).await {
+    match client
+        .get_program_accounts_with_config(program_id, config)
+        .await
+    {
         Ok(accounts) => accounts
             .into_iter()
             .filter_map(|(pubkey, account)| parse_intent(pubkey, &account.data))

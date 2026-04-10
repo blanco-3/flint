@@ -4,6 +4,7 @@ import BN from "bn.js";
 import {
   createMint,
   createAssociatedTokenAccount,
+  getOrCreateAssociatedTokenAccount,
   mintTo,
   getAssociatedTokenAddress,
   TOKEN_PROGRAM_ID,
@@ -33,6 +34,9 @@ describe("flint", () => {
   let solverInputAta: PublicKey;
   let solverOutputAta: PublicKey;
   let userOutputAta: PublicKey;
+  let refundedIntentPda: PublicKey;
+  let refundedBidPda: PublicKey;
+  let refundedEscrowAta: PublicKey;
 
   const NONCE = new BN(Date.now());
 
@@ -115,6 +119,25 @@ describe("flint", () => {
     console.log("  inputMint:", inputMint.toBase58());
     console.log("  outputMint:", outputMint.toBase58());
   });
+
+  async function waitUntilSlotPassed(targetSlot: number) {
+    let currentSlot = await provider.connection.getSlot();
+    while (currentSlot <= targetSlot) {
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      currentSlot = await provider.connection.getSlot();
+    }
+    return currentSlot;
+  }
+
+  async function ensureIntentEscrowAta(intentPda: PublicKey) {
+    await getOrCreateAssociatedTokenAccount(
+      provider.connection,
+      user,
+      inputMint,
+      intentPda,
+      true
+    );
+  }
 
   it("유저가 인텐트를 제출한다", async () => {
     const [intentPda] = PublicKey.findProgramAddressSync(
@@ -362,11 +385,7 @@ describe("flint", () => {
 
     const intentBeforeCancel = await program.account.intentAccount.fetch(intentPda);
     const closeAtSlot = intentBeforeCancel.closeAtSlot.toNumber();
-    let currentSlot = await provider.connection.getSlot();
-    while (currentSlot <= closeAtSlot) {
-      await new Promise((resolve) => setTimeout(resolve, 400));
-      currentSlot = await provider.connection.getSlot();
-    }
+    await waitUntilSlotPassed(closeAtSlot);
 
     const tx = await program.methods
       .cancelIntent()
@@ -393,8 +412,361 @@ describe("flint", () => {
     assert.equal(userInputAfter, userInputBefore);
   });
 
+  it("미정산 낙찰이 grace 이후 환불되고 슬래시된다", async () => {
+    const refundNonce = new BN(Date.now() + 10);
+    refundedIntentPda = PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("intent"),
+        user.publicKey.toBuffer(),
+        refundNonce.toArrayLike(Buffer, "le", 8),
+      ],
+      programId
+    )[0];
+    refundedBidPda = PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("bid"),
+        refundedIntentPda.toBuffer(),
+        solver.publicKey.toBuffer(),
+      ],
+      programId
+    )[0];
+    refundedEscrowAta = await getAssociatedTokenAddress(
+      inputMint,
+      refundedIntentPda,
+      true
+    );
+
+    const [solverRegistryPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("solver"), solver.publicKey.toBuffer()],
+      programId
+    );
+    const inputAmount = new BN(60_000_000);
+    const minOutputAmount = new BN(55_000_000);
+    const userInputBefore = BigInt(
+      (await provider.connection.getTokenAccountBalance(userInputAta)).value.amount
+    );
+
+    await program.methods
+      .submitIntent(inputAmount, minOutputAmount, refundNonce)
+      .accounts({
+        user: user.publicKey,
+        inputMint,
+        outputMint,
+        userTokenAccount: userInputAta,
+        escrowTokenAccount: refundedEscrowAta,
+        intent: refundedIntentPda,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+        rent: SYSVAR_RENT_PUBKEY,
+      })
+      .signers([user])
+      .rpc();
+
+    await program.methods
+      .submitBid(new BN(57_000_000))
+      .accounts({
+        solver: solver.publicKey,
+        intent: refundedIntentPda,
+        bid: refundedBidPda,
+        systemProgram: SystemProgram.programId,
+      })
+      .signers([solver])
+      .rpc();
+
+    const refundIntent = await program.account.intentAccount.fetch(refundedIntentPda);
+    const refundTargetSlot = refundIntent.closeAtSlot.toNumber() + 10;
+    await waitUntilSlotPassed(refundTargetSlot);
+
+    const registryBefore = await program.account.solverRegistryAccount.fetch(
+      solverRegistryPda
+    );
+    const registryInfoBefore = await provider.connection.getAccountInfo(
+      solverRegistryPda
+    );
+    assert.isNotNull(registryInfoBefore);
+
+    const stakeBefore = BigInt(registryBefore.stakeAmount.toString());
+    const minBalance = BigInt(
+      await provider.connection.getMinimumBalanceForRentExemption(
+        registryInfoBefore!.data.length
+      )
+    );
+    const lamportsBefore = BigInt(registryInfoBefore!.lamports);
+    const nominalSlash = (stakeBefore * BigInt(2000)) / BigInt(10_000);
+    const withdrawableLamports =
+      lamportsBefore > minBalance ? lamportsBefore - minBalance : BigInt(0);
+    const safeSlash =
+      nominalSlash < withdrawableLamports ? nominalSlash : withdrawableLamports;
+
+    const tx = await program.methods
+      .refundAfterTimeout()
+      .accounts({
+        caller: provider.wallet.publicKey,
+        solver: solver.publicKey,
+        solverRegistry: solverRegistryPda,
+        intent: refundedIntentPda,
+        winningBid: refundedBidPda,
+        escrowTokenAccount: refundedEscrowAta,
+        userTokenAccount: userInputAta,
+        user: user.publicKey,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+      })
+      .rpc();
+
+    console.log("  refund_after_timeout tx:", tx);
+
+    const intentAfter = await program.account.intentAccount.fetch(refundedIntentPda);
+    const bidAfter = await program.account.bidAccount.fetch(refundedBidPda);
+    const registryAfter = await program.account.solverRegistryAccount.fetch(
+      solverRegistryPda
+    );
+    const userInputAfter = BigInt(
+      (await provider.connection.getTokenAccountBalance(userInputAta)).value.amount
+    );
+    const escrowInfoAfter = await provider.connection.getAccountInfo(refundedEscrowAta);
+
+    assert.deepEqual(intentAfter.status, { expired: {} });
+    assert.isTrue(bidAfter.isSettled);
+    assert.equal(userInputAfter, userInputBefore);
+    assert.isNull(escrowInfoAfter, "escrow ATA should be closed");
+    assert.equal(
+      BigInt(registryAfter.stakeAmount.toString()),
+      stakeBefore - safeSlash,
+      "safe_slash만큼 stake가 감소해야 함"
+    );
+    assert.equal(
+      BigInt(registryBefore.reputationScore.toString()) -
+        BigInt(registryAfter.reputationScore.toString()),
+      BigInt(100)
+    );
+  });
+
+  it("grace 이전에는 refund_after_timeout이 실패한다", async () => {
+    const graceNonce = new BN(Date.now() + 20);
+    const [graceIntentPda] = PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("intent"),
+        user.publicKey.toBuffer(),
+        graceNonce.toArrayLike(Buffer, "le", 8),
+      ],
+      programId
+    );
+    const [graceBidPda] = PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("bid"),
+        graceIntentPda.toBuffer(),
+        solver.publicKey.toBuffer(),
+      ],
+      programId
+    );
+    const graceEscrowAta = await getAssociatedTokenAddress(
+      inputMint,
+      graceIntentPda,
+      true
+    );
+    const [solverRegistryPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("solver"), solver.publicKey.toBuffer()],
+      programId
+    );
+
+    await program.methods
+      .submitIntent(new BN(40_000_000), new BN(35_000_000), graceNonce)
+      .accounts({
+        user: user.publicKey,
+        inputMint,
+        outputMint,
+        userTokenAccount: userInputAta,
+        escrowTokenAccount: graceEscrowAta,
+        intent: graceIntentPda,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+        rent: SYSVAR_RENT_PUBKEY,
+      })
+      .signers([user])
+      .rpc();
+
+    await program.methods
+      .submitBid(new BN(38_000_000))
+      .accounts({
+        solver: solver.publicKey,
+        intent: graceIntentPda,
+        bid: graceBidPda,
+        systemProgram: SystemProgram.programId,
+      })
+      .signers([solver])
+      .rpc();
+
+    const graceIntent = await program.account.intentAccount.fetch(graceIntentPda);
+    await waitUntilSlotPassed(graceIntent.closeAtSlot.toNumber());
+
+    try {
+      await program.methods
+        .refundAfterTimeout()
+        .accounts({
+          caller: provider.wallet.publicKey,
+          solver: solver.publicKey,
+          solverRegistry: solverRegistryPda,
+          intent: graceIntentPda,
+          winningBid: graceBidPda,
+          escrowTokenAccount: graceEscrowAta,
+          userTokenAccount: userInputAta,
+          user: user.publicKey,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+
+      assert.fail("expected RefundGracePeriodNotElapsed");
+    } catch (error) {
+      assert.include(String(error), "RefundGracePeriodNotElapsed");
+    }
+  });
+
+  it("winning bid가 없으면 refund_after_timeout이 실패한다", async () => {
+    const noBidNonce = new BN(Date.now() + 30);
+    const [noBidIntentPda] = PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("intent"),
+        user.publicKey.toBuffer(),
+        noBidNonce.toArrayLike(Buffer, "le", 8),
+      ],
+      programId
+    );
+    const noBidEscrowAta = await getAssociatedTokenAddress(
+      inputMint,
+      noBidIntentPda,
+      true
+    );
+    const [solverRegistryPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("solver"), solver.publicKey.toBuffer()],
+      programId
+    );
+    const [existingBidPda] = PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("bid"),
+        PublicKey.findProgramAddressSync(
+          [
+            Buffer.from("intent"),
+            user.publicKey.toBuffer(),
+            NONCE.toArrayLike(Buffer, "le", 8),
+          ],
+          programId
+        )[0].toBuffer(),
+        solver.publicKey.toBuffer(),
+      ],
+      programId
+    );
+
+    await program.methods
+      .submitIntent(new BN(30_000_000), new BN(28_000_000), noBidNonce)
+      .accounts({
+        user: user.publicKey,
+        inputMint,
+        outputMint,
+        userTokenAccount: userInputAta,
+        escrowTokenAccount: noBidEscrowAta,
+        intent: noBidIntentPda,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+        rent: SYSVAR_RENT_PUBKEY,
+      })
+      .signers([user])
+      .rpc();
+
+    const noBidIntent = await program.account.intentAccount.fetch(noBidIntentPda);
+    await waitUntilSlotPassed(noBidIntent.closeAtSlot.toNumber() + 10);
+
+    try {
+      await program.methods
+        .refundAfterTimeout()
+        .accounts({
+          caller: provider.wallet.publicKey,
+          solver: solver.publicKey,
+          solverRegistry: solverRegistryPda,
+          intent: noBidIntentPda,
+          winningBid: existingBidPda,
+          escrowTokenAccount: noBidEscrowAta,
+          userTokenAccount: userInputAta,
+          user: user.publicKey,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+
+      assert.fail("expected NoBidsReceived");
+    } catch (error) {
+      assert.include(String(error), "NoBidsReceived");
+    }
+  });
+
+  it("refund_after_timeout 이후 settle_auction는 실패한다", async () => {
+    await ensureIntentEscrowAta(refundedIntentPda);
+
+    try {
+      await program.methods
+        .settleAuction()
+        .accounts({
+          solver: solver.publicKey,
+          intent: refundedIntentPda,
+          winningBid: refundedBidPda,
+          escrowTokenAccount: refundedEscrowAta,
+          solverInputTokenAccount: solverInputAta,
+          solverOutputTokenAccount: solverOutputAta,
+          userOutputTokenAccount: userOutputAta,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([solver])
+        .rpc();
+
+      assert.fail("expected settle_auction to fail after refund");
+    } catch (error) {
+      assert.include(String(error), "IntentNotOpen");
+    }
+  });
+
+  it("refund_after_timeout 성공 후 두 번째 호출도 실패한다", async () => {
+    await ensureIntentEscrowAta(refundedIntentPda);
+
+    const [solverRegistryPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("solver"), solver.publicKey.toBuffer()],
+      programId
+    );
+
+    try {
+      await program.methods
+        .refundAfterTimeout()
+        .accounts({
+          caller: provider.wallet.publicKey,
+          solver: solver.publicKey,
+          solverRegistry: solverRegistryPda,
+          intent: refundedIntentPda,
+          winningBid: refundedBidPda,
+          escrowTokenAccount: refundedEscrowAta,
+          userTokenAccount: userInputAta,
+          user: user.publicKey,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+
+      assert.fail("expected second refund_after_timeout to fail");
+    } catch (error) {
+      assert.include(String(error), "IntentNotOpen");
+    }
+  });
+
   it("낙찰 솔버가 슬래싱된다 (미정산 케이스)", async () => {
-    const slashNonce = new BN(Date.now() + 2);
+    const slashNonce = new BN(Date.now() + 100);
     const [slashIntentPda] = PublicKey.findProgramAddressSync(
       [
         Buffer.from("intent"),
@@ -451,11 +823,7 @@ describe("flint", () => {
 
     const slashIntent = await program.account.intentAccount.fetch(slashIntentPda);
     const slashCloseAt = slashIntent.closeAtSlot.toNumber();
-    let currentSlot = await provider.connection.getSlot();
-    while (currentSlot <= slashCloseAt) {
-      await new Promise((resolve) => setTimeout(resolve, 400));
-      currentSlot = await provider.connection.getSlot();
-    }
+    const currentSlot = await waitUntilSlotPassed(slashCloseAt);
     console.log("  슬래시 경매 종료. 현재 슬롯:", currentSlot, "종료 슬롯:", slashCloseAt);
 
     const registryBefore = await program.account.solverRegistryAccount.fetch(

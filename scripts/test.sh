@@ -19,6 +19,8 @@ mkdir -p target/idl
 cp idl/flint.json target/idl/flint.json
 diff idl/flint.json target/idl/flint.json
 
+anchor deploy > /dev/null
+
 ANCHOR_PROVIDER_URL=http://127.0.0.1:8899 \
 ANCHOR_WALLET="$HOME/.config/solana/id.json" \
 yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts

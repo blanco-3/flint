@@ -311,6 +311,85 @@
       "args": []
     },
     {
+      "name": "refund_after_timeout",
+      "discriminator": [
+        213,
+        61,
+        128,
+        68,
+        149,
+        201,
+        53,
+        130
+      ],
+      "accounts": [
+        {
+          "name": "caller",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "solver"
+        },
+        {
+          "name": "solver_registry",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  111,
+                  108,
+                  118,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "solver"
+              }
+            ]
+          }
+        },
+        {
+          "name": "intent",
+          "writable": true
+        },
+        {
+          "name": "winning_bid",
+          "writable": true
+        },
+        {
+          "name": "escrow_token_account",
+          "writable": true
+        },
+        {
+          "name": "user_token_account",
+          "writable": true
+        },
+        {
+          "name": "user",
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJe1bmd"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "slash_solver",
       "discriminator": [
         237,
@@ -409,6 +488,99 @@
       ]
     }
   ],
+  "events": [
+    {
+      "name": "IntentSubmitted",
+      "discriminator": [
+        206,
+        100,
+        231,
+        141,
+        245,
+        30,
+        80,
+        99
+      ]
+    },
+    {
+      "name": "BidSubmitted",
+      "discriminator": [
+        116,
+        72,
+        108,
+        240,
+        175,
+        70,
+        56,
+        22
+      ]
+    },
+    {
+      "name": "AuctionSettled",
+      "discriminator": [
+        61,
+        151,
+        131,
+        170,
+        95,
+        203,
+        219,
+        147
+      ]
+    },
+    {
+      "name": "SolverRegistered",
+      "discriminator": [
+        244,
+        150,
+        97,
+        26,
+        156,
+        48,
+        149,
+        36
+      ]
+    },
+    {
+      "name": "IntentCancelled",
+      "discriminator": [
+        39,
+        174,
+        74,
+        165,
+        39,
+        101,
+        119,
+        29
+      ]
+    },
+    {
+      "name": "SolverSlashed",
+      "discriminator": [
+        59,
+        24,
+        119,
+        82,
+        8,
+        69,
+        128,
+        247
+      ]
+    },
+    {
+      "name": "IntentRefundedAfterTimeout",
+      "discriminator": [
+        15,
+        96,
+        186,
+        27,
+        161,
+        38,
+        139,
+        199
+      ]
+    }
+  ],
   "errors": [
     {
       "code": 6000,
@@ -489,6 +661,11 @@
       "code": 6015,
       "name": "SlashConditionNotMet",
       "msg": "슬래싱 조건이 충족되지 않았습니다"
+    },
+    {
+      "code": 6016,
+      "name": "RefundGracePeriodNotElapsed",
+      "msg": "refund grace period가 아직 지나지 않았습니다"
     }
   ],
   "types": [
@@ -638,6 +815,190 @@
           {
             "name": "bump",
             "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "IntentSubmitted",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "intent",
+            "type": "pubkey"
+          },
+          {
+            "name": "user",
+            "type": "pubkey"
+          },
+          {
+            "name": "input_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "output_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "input_amount",
+            "type": "u64"
+          },
+          {
+            "name": "min_output_amount",
+            "type": "u64"
+          },
+          {
+            "name": "close_at_slot",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "BidSubmitted",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bid",
+            "type": "pubkey"
+          },
+          {
+            "name": "intent",
+            "type": "pubkey"
+          },
+          {
+            "name": "solver",
+            "type": "pubkey"
+          },
+          {
+            "name": "output_amount",
+            "type": "u64"
+          },
+          {
+            "name": "submitted_at_slot",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "AuctionSettled",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "intent",
+            "type": "pubkey"
+          },
+          {
+            "name": "winning_bid",
+            "type": "pubkey"
+          },
+          {
+            "name": "solver",
+            "type": "pubkey"
+          },
+          {
+            "name": "user",
+            "type": "pubkey"
+          },
+          {
+            "name": "input_amount",
+            "type": "u64"
+          },
+          {
+            "name": "output_amount",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "SolverRegistered",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "solver",
+            "type": "pubkey"
+          },
+          {
+            "name": "stake_amount",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "IntentCancelled",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "intent",
+            "type": "pubkey"
+          },
+          {
+            "name": "user",
+            "type": "pubkey"
+          },
+          {
+            "name": "refunded_amount",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "SolverSlashed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "solver",
+            "type": "pubkey"
+          },
+          {
+            "name": "slash_amount",
+            "type": "u64"
+          },
+          {
+            "name": "remaining_stake",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "IntentRefundedAfterTimeout",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "intent",
+            "type": "pubkey"
+          },
+          {
+            "name": "user",
+            "type": "pubkey"
+          },
+          {
+            "name": "solver",
+            "type": "pubkey"
+          },
+          {
+            "name": "caller",
+            "type": "pubkey"
+          },
+          {
+            "name": "refunded_amount",
+            "type": "u64"
+          },
+          {
+            "name": "slash_amount",
+            "type": "u64"
           }
         ]
       }

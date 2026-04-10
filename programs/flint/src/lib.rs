@@ -43,6 +43,11 @@ pub mod flint {
         instructions::cancel_intent::handler(ctx)
     }
 
+    /// 낙찰은 있었지만 미정산 timeout이 발생한 경우 환불 + 슬래시
+    pub fn refund_after_timeout(ctx: Context<RefundAfterTimeout>) -> Result<()> {
+        instructions::refund_after_timeout::handler(ctx)
+    }
+
     /// 낙찰 후 불이행한 솔버를 슬래싱
     pub fn slash_solver(ctx: Context<SlashSolver>) -> Result<()> {
         instructions::slash_solver::handler(ctx)

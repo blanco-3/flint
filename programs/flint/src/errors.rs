@@ -49,4 +49,7 @@ pub enum FlintError {
 
     #[msg("슬래싱 조건이 충족되지 않았습니다")]
     SlashConditionNotMet,
+
+    #[msg("refund grace period가 아직 지나지 않았습니다")]
+    RefundGracePeriodNotElapsed,
 }
