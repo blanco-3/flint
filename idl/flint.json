@@ -116,6 +116,29 @@
           "signer": true
         },
         {
+          "name": "solver_registry",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  111,
+                  108,
+                  118,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "solver"
+              }
+            ]
+          }
+        },
+        {
           "name": "intent",
           "writable": true
         },
@@ -142,6 +165,16 @@
               }
             ]
           }
+        },
+        {
+          "name": "previous_winning_bid",
+          "writable": true,
+          "optional": true
+        },
+        {
+          "name": "previous_solver_registry",
+          "writable": true,
+          "optional": true
         },
         {
           "name": "system_program",
@@ -182,6 +215,29 @@
           "writable": true
         },
         {
+          "name": "solver_registry",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  111,
+                  108,
+                  118,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "solver"
+              }
+            ]
+          }
+        },
+        {
           "name": "escrow_token_account",
           "writable": true
         },
@@ -195,6 +251,10 @@
         },
         {
           "name": "user_output_token_account",
+          "writable": true
+        },
+        {
+          "name": "user",
           "writable": true
         },
         {
@@ -329,7 +389,8 @@
           "signer": true
         },
         {
-          "name": "solver"
+          "name": "solver",
+          "writable": true
         },
         {
           "name": "solver_registry",
@@ -408,6 +469,24 @@
           "signer": true
         },
         {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
           "name": "solver"
         },
         {
@@ -442,6 +521,165 @@
         {
           "name": "system_program",
           "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "initialize_config",
+      "discriminator": [
+        208,
+        127,
+        21,
+        1,
+        194,
+        190,
+        196,
+        70
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "slash_authority",
+          "type": "pubkey"
+        },
+        {
+          "name": "stake_lockup_slots",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "update_slash_authority",
+      "discriminator": [
+        78,
+        88,
+        227,
+        85,
+        178,
+        109,
+        118,
+        199
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "new_slash_authority",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "withdraw_stake",
+      "discriminator": [
+        153,
+        8,
+        22,
+        138,
+        105,
+        176,
+        87,
+        66
+      ],
+      "accounts": [
+        {
+          "name": "solver",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "solver_registry",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  111,
+                  108,
+                  118,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "solver"
+              }
+            ]
+          }
         }
       ],
       "args": []
@@ -485,6 +723,19 @@
         182,
         228,
         217
+      ]
+    },
+    {
+      "name": "ConfigAccount",
+      "discriminator": [
+        189,
+        255,
+        97,
+        70,
+        186,
+        189,
+        24,
+        102
       ]
     }
   ],
@@ -666,6 +917,36 @@
       "code": 6016,
       "name": "RefundGracePeriodNotElapsed",
       "msg": "refund grace period가 아직 지나지 않았습니다"
+    },
+    {
+      "code": 6017,
+      "name": "UnauthorizedSlashAuthority",
+      "msg": "슬래시 권한이 없습니다"
+    },
+    {
+      "code": 6018,
+      "name": "UnauthorizedConfigAdmin",
+      "msg": "설정 변경 권한이 없습니다"
+    },
+    {
+      "code": 6019,
+      "name": "StakeLockupActive",
+      "msg": "스테이크 락업 기간이 아직 끝나지 않았습니다"
+    },
+    {
+      "code": 6020,
+      "name": "ActiveWinningBidsExist",
+      "msg": "활성 winning bid가 있어 스테이크를 인출할 수 없습니다"
+    },
+    {
+      "code": 6021,
+      "name": "PreviousWinningBidRequired",
+      "msg": "이전 winning bid 정보가 필요합니다"
+    },
+    {
+      "code": 6022,
+      "name": "PreviousWinningBidMismatch",
+      "msg": "이전 winning bid 정보가 현재 인텐트 상태와 일치하지 않습니다"
     }
   ],
   "types": [
@@ -802,6 +1083,10 @@
           },
           {
             "name": "total_fills",
+            "type": "u64"
+          },
+          {
+            "name": "active_winning_bids",
             "type": "u64"
           },
           {
@@ -999,6 +1284,30 @@
           {
             "name": "slash_amount",
             "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ConfigAccount",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "admin",
+            "type": "pubkey"
+          },
+          {
+            "name": "slash_authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "stake_lockup_slots",
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
           }
         ]
       }

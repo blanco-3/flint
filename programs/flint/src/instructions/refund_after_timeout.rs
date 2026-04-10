@@ -94,6 +94,7 @@ pub fn handler(ctx: Context<RefundAfterTimeout>) -> Result<()> {
 
     registry.stake_amount = registry.stake_amount.saturating_sub(safe_slash);
     registry.reputation_score = registry.reputation_score.saturating_sub(100);
+    registry.active_winning_bids = registry.active_winning_bids.saturating_sub(1);
 
     let winning_bid = &mut ctx.accounts.winning_bid;
     winning_bid.is_settled = true;
@@ -127,6 +128,7 @@ pub struct RefundAfterTimeout<'info> {
     #[account(mut)]
     pub caller: Signer<'info>,
 
+    #[account(mut)]
     pub solver: SystemAccount<'info>,
 
     #[account(
@@ -136,10 +138,10 @@ pub struct RefundAfterTimeout<'info> {
     )]
     pub solver_registry: Account<'info, SolverRegistryAccount>,
 
-    #[account(mut)]
+    #[account(mut, close = user)]
     pub intent: Account<'info, IntentAccount>,
 
-    #[account(mut)]
+    #[account(mut, close = solver)]
     pub winning_bid: Account<'info, BidAccount>,
 
     #[account(

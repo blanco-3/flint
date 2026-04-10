@@ -11,6 +11,8 @@ pub struct SolverRegistryAccount {
     pub total_bids: u64,
     /// 누적 체결 횟수
     pub total_fills: u64,
+    /// 현재 winning bid로 잡혀 있는 활성 인텐트 수
+    pub active_winning_bids: u64,
     /// 레퓨테이션 점수 (fills / bids * 1000)
     pub reputation_score: u64,
     /// 등록 슬롯

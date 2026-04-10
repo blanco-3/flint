@@ -14,6 +14,24 @@ pub mod flint {
 
     /// 유저가 인텐트를 제출하고 토큰을 에스크로에 잠금
     /// nonce: unix timestamp 등 클라이언트 제공 유니크 값
+    pub fn initialize_config(
+        ctx: Context<InitializeConfig>,
+        slash_authority: Pubkey,
+        stake_lockup_slots: u64,
+    ) -> Result<()> {
+        instructions::initialize_config::handler(ctx, slash_authority, stake_lockup_slots)
+    }
+
+    /// 슬래시 권한 업데이트
+    pub fn update_slash_authority(
+        ctx: Context<UpdateSlashAuthority>,
+        new_slash_authority: Pubkey,
+    ) -> Result<()> {
+        instructions::update_slash_authority::handler(ctx, new_slash_authority)
+    }
+
+    /// 유저가 인텐트를 제출하고 토큰을 에스크로에 잠금
+    /// nonce: unix timestamp 등 클라이언트 제공 유니크 값
     pub fn submit_intent(
         ctx: Context<SubmitIntent>,
         input_amount: u64,
@@ -51,5 +69,10 @@ pub mod flint {
     /// 낙찰 후 불이행한 솔버를 슬래싱
     pub fn slash_solver(ctx: Context<SlashSolver>) -> Result<()> {
         instructions::slash_solver::handler(ctx)
+    }
+
+    /// 락업 종료 후 스테이크 전액 인출
+    pub fn withdraw_stake(ctx: Context<WithdrawStake>) -> Result<()> {
+        instructions::withdraw_stake::handler(ctx)
     }
 }

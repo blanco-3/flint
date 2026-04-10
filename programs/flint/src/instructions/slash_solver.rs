@@ -2,7 +2,9 @@ use anchor_lang::prelude::*;
 
 use crate::{
     errors::FlintError,
-    state::{BidAccount, IntentAccount, IntentStatus, SolverRegistryAccount, SLASH_BPS},
+    state::{
+        BidAccount, ConfigAccount, IntentAccount, IntentStatus, SolverRegistryAccount, SLASH_BPS,
+    },
 };
 
 pub fn handler(ctx: Context<SlashSolver>) -> Result<()> {
@@ -29,6 +31,11 @@ pub fn handler(ctx: Context<SlashSolver>) -> Result<()> {
     require!(
         ctx.accounts.winning_bid.solver == ctx.accounts.solver_registry.solver,
         FlintError::NotWinningBid
+    );
+    require_keys_eq!(
+        ctx.accounts.authority.key(),
+        ctx.accounts.config.slash_authority,
+        FlintError::UnauthorizedSlashAuthority
     );
 
     let registry = &mut ctx.accounts.solver_registry;
@@ -72,6 +79,12 @@ pub fn handler(ctx: Context<SlashSolver>) -> Result<()> {
 pub struct SlashSolver<'info> {
     #[account(mut)]
     pub authority: Signer<'info>,
+
+    #[account(
+        seeds = [b"config"],
+        bump = config.bump,
+    )]
+    pub config: Account<'info, ConfigAccount>,
 
     pub solver: SystemAccount<'info>,
 

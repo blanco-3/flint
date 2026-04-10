@@ -80,6 +80,7 @@ pub struct CancelIntent<'info> {
 
     #[account(
         mut,
+        close = user,
         constraint = intent.user == user.key(),
     )]
     pub intent: Account<'info, IntentAccount>,

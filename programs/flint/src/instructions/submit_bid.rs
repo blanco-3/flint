@@ -1,10 +1,66 @@
 use crate::errors::FlintError;
-use crate::state::{BidAccount, IntentAccount, IntentStatus};
+use crate::state::{BidAccount, IntentAccount, IntentStatus, SolverRegistryAccount};
 use anchor_lang::prelude::*;
 
 pub fn handler(ctx: Context<SubmitBid>, output_amount: u64) -> Result<()> {
     let clock = Clock::get()?;
     let current_slot = clock.slot;
+    let previous_winning_bid_key = ctx.accounts.intent.winning_bid;
+
+    match previous_winning_bid_key {
+        Some(previous_bid_key) => {
+            let previous_winning_bid = ctx
+                .accounts
+                .previous_winning_bid
+                .as_ref()
+                .ok_or(FlintError::PreviousWinningBidRequired)?;
+            let previous_solver_registry = ctx
+                .accounts
+                .previous_solver_registry
+                .as_mut()
+                .ok_or(FlintError::PreviousWinningBidRequired)?;
+
+            require_keys_eq!(
+                previous_winning_bid.key(),
+                previous_bid_key,
+                FlintError::PreviousWinningBidMismatch
+            );
+            require!(
+                previous_winning_bid.intent == ctx.accounts.intent.key(),
+                FlintError::PreviousWinningBidMismatch
+            );
+            require!(
+                !previous_winning_bid.is_settled,
+                FlintError::PreviousWinningBidMismatch
+            );
+            require!(
+                previous_solver_registry.solver == previous_winning_bid.solver,
+                FlintError::PreviousWinningBidMismatch
+            );
+
+            let expected_registry_key = Pubkey::find_program_address(
+                &[b"solver", previous_winning_bid.solver.as_ref()],
+                &crate::ID,
+            )
+            .0;
+            require_keys_eq!(
+                previous_solver_registry.key(),
+                expected_registry_key,
+                FlintError::PreviousWinningBidMismatch
+            );
+
+            previous_solver_registry.active_winning_bids = previous_solver_registry
+                .active_winning_bids
+                .saturating_sub(1);
+        }
+        None => {
+            require!(
+                ctx.accounts.previous_winning_bid.is_none()
+                    && ctx.accounts.previous_solver_registry.is_none(),
+                FlintError::PreviousWinningBidMismatch
+            );
+        }
+    }
 
     let intent = &mut ctx.accounts.intent;
 
@@ -33,6 +89,10 @@ pub fn handler(ctx: Context<SubmitBid>, output_amount: u64) -> Result<()> {
     // 인텐트 최고가 갱신
     intent.best_bid_amount = output_amount;
     intent.winning_bid = Some(ctx.accounts.bid.key());
+
+    let solver_registry = &mut ctx.accounts.solver_registry;
+    solver_registry.total_bids = solver_registry.total_bids.saturating_add(1);
+    solver_registry.active_winning_bids = solver_registry.active_winning_bids.saturating_add(1);
 
     let bid = &mut ctx.accounts.bid;
     bid.solver = ctx.accounts.solver.key();
@@ -68,6 +128,14 @@ pub struct SubmitBid<'info> {
 
     #[account(
         mut,
+        seeds = [b"solver", solver.key().as_ref()],
+        bump = solver_registry.bump,
+        constraint = solver_registry.solver == solver.key() @ FlintError::NotWinningBid,
+    )]
+    pub solver_registry: Account<'info, SolverRegistryAccount>,
+
+    #[account(
+        mut,
         constraint = intent.status == IntentStatus::Open @ FlintError::IntentNotOpen,
     )]
     pub intent: Account<'info, IntentAccount>,
@@ -82,6 +150,12 @@ pub struct SubmitBid<'info> {
         bump,
     )]
     pub bid: Account<'info, BidAccount>,
+
+    #[account(mut)]
+    pub previous_winning_bid: Option<Account<'info, BidAccount>>,
+
+    #[account(mut)]
+    pub previous_solver_registry: Option<Account<'info, SolverRegistryAccount>>,
 
     pub system_program: Program<'info, System>,
 }

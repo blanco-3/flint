@@ -31,6 +31,7 @@ pub fn handler(ctx: Context<RegisterSolver>, stake_amount: u64) -> Result<()> {
     registry.stake_amount = stake_amount;
     registry.total_bids = 0;
     registry.total_fills = 0;
+    registry.active_winning_bids = 0;
     registry.reputation_score = 1000;
     registry.registered_at_slot = current_slot;
     registry.bump = ctx.bumps.solver_registry;

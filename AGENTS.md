@@ -56,7 +56,7 @@ list(hashlib.sha256(f"account:{name}".encode()).digest()[:8])
 
 - When adding a new `errors.rs` variant, update the IDL `errors` array in `idl/flint.json` too.
 - Error codes are sequential starting at `6000`.
-- Current last error code: `6016` (`RefundGracePeriodNotElapsed`).
+- Current last error code: `6022` (`PreviousWinningBidMismatch`).
 
 ## PDA Seeds
 

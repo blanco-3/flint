@@ -52,4 +52,22 @@ pub enum FlintError {
 
     #[msg("refund grace period가 아직 지나지 않았습니다")]
     RefundGracePeriodNotElapsed,
+
+    #[msg("슬래시 권한이 없습니다")]
+    UnauthorizedSlashAuthority,
+
+    #[msg("설정 변경 권한이 없습니다")]
+    UnauthorizedConfigAdmin,
+
+    #[msg("스테이크 락업 기간이 아직 끝나지 않았습니다")]
+    StakeLockupActive,
+
+    #[msg("활성 winning bid가 있어 스테이크를 인출할 수 없습니다")]
+    ActiveWinningBidsExist,
+
+    #[msg("이전 winning bid 정보가 필요합니다")]
+    PreviousWinningBidRequired,
+
+    #[msg("이전 winning bid 정보가 현재 인텐트 상태와 일치하지 않습니다")]
+    PreviousWinningBidMismatch,
 }

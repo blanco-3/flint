@@ -1,7 +1,7 @@
 use crate::errors::FlintError;
-use crate::state::{BidAccount, IntentAccount, IntentStatus};
+use crate::state::{BidAccount, IntentAccount, IntentStatus, SolverRegistryAccount};
 use anchor_lang::prelude::*;
-use anchor_spl::token::{self, Token, TokenAccount, Transfer};
+use anchor_spl::token::{self, CloseAccount, Token, TokenAccount, Transfer};
 
 pub fn handler(ctx: Context<SettleAuction>) -> Result<()> {
     let clock = Clock::get()?;
@@ -61,7 +61,22 @@ pub fn handler(ctx: Context<SettleAuction>) -> Result<()> {
     );
     token::transfer(transfer_to_user, output_amount)?;
 
+    let close_escrow_ctx = CpiContext::new_with_signer(
+        ctx.accounts.token_program.to_account_info(),
+        CloseAccount {
+            account: ctx.accounts.escrow_token_account.to_account_info(),
+            destination: ctx.accounts.user.to_account_info(),
+            authority: ctx.accounts.intent.to_account_info(),
+        },
+        signer_seeds,
+    );
+    token::close_account(close_escrow_ctx)?;
+
     // 상태 업데이트
+    let solver_registry = &mut ctx.accounts.solver_registry;
+    solver_registry.active_winning_bids = solver_registry.active_winning_bids.saturating_sub(1);
+    solver_registry.total_fills = solver_registry.total_fills.saturating_add(1);
+
     let intent = &mut ctx.accounts.intent;
     intent.status = IntentStatus::Filled;
 
@@ -96,16 +111,27 @@ pub struct SettleAuction<'info> {
 
     #[account(
         mut,
+        close = user,
         constraint = intent.status == IntentStatus::Open @ FlintError::IntentNotOpen,
     )]
     pub intent: Account<'info, IntentAccount>,
 
     #[account(
         mut,
+        close = solver,
         constraint = winning_bid.intent == intent.key() @ FlintError::NotWinningBid,
         constraint = !winning_bid.is_settled @ FlintError::AlreadySettled,
+        constraint = winning_bid.solver == solver.key() @ FlintError::NotWinningBid,
     )]
     pub winning_bid: Account<'info, BidAccount>,
+
+    #[account(
+        mut,
+        seeds = [b"solver", solver.key().as_ref()],
+        bump = solver_registry.bump,
+        constraint = solver_registry.solver == solver.key() @ FlintError::NotWinningBid,
+    )]
+    pub solver_registry: Account<'info, SolverRegistryAccount>,
 
     /// 에스크로 (intent PDA authority)
     #[account(
@@ -138,6 +164,9 @@ pub struct SettleAuction<'info> {
         associated_token::authority = intent.user,
     )]
     pub user_output_token_account: Account<'info, TokenAccount>,
+
+    #[account(mut, address = intent.user)]
+    pub user: SystemAccount<'info>,
 
     pub token_program: Program<'info, Token>,
     pub associated_token_program: Program<'info, anchor_spl::associated_token::AssociatedToken>,
