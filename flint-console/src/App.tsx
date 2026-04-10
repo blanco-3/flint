@@ -335,17 +335,14 @@ function RequestsTab({
 }) {
   return (
     <div className="requests-layout">
-      <div className="requests-header">
-        <span className="requests-title">Request Ledger</span>
+      <div className="requests-toolbar">
         <button className="btn-primary" onClick={onOpenModal}>
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
           </svg>
-          Submit Intent
+          New Intent
         </button>
       </div>
-
-      <ComparisonStrip />
 
       <div className="table-container">
         <table className="table">
@@ -411,31 +408,6 @@ function getResultClass(type: string): string {
     case "slashed": return "result-negative";
     default: return "result-neutral";
   }
-}
-
-// === ComparisonStrip ===
-function ComparisonStrip() {
-  const baseline = benchmarkByName["single-solver-baseline"];
-  const twoSolver = benchmarkByName["two-solver-competition"];
-
-  return (
-    <div className="comparison-strip">
-      <div className="comparison-col">
-        <span className="comparison-label">Baseline Route</span>
-        <span className="comparison-value baseline">+{baseline.improvementBps} bps</span>
-        <span className="comparison-note">single solver</span>
-      </div>
-      <div className="comparison-col center">
-        <span className="comparison-delta">+{twoSolver.improvementBps - baseline.improvementBps} bps</span>
-        <span className="comparison-note">improvement</span>
-      </div>
-      <div className="comparison-col right">
-        <span className="comparison-label">Flint Protected</span>
-        <span className="comparison-value protected">+{twoSolver.improvementBps} bps</span>
-        <span className="comparison-note">with fallback safety</span>
-      </div>
-    </div>
-  );
 }
 
 // === DetailDrawer ===
@@ -581,10 +553,6 @@ function DetailDrawer({ request, onClose }: { request: FlintRequest; onClose: ()
 function SolversTab({ solvers }: { solvers: Solver[] }) {
   return (
     <div className="solvers-layout">
-      <div className="requests-header">
-        <span className="requests-title">Solver Registry</span>
-      </div>
-
       <div className="table-container">
         <table className="table">
           <thead>
@@ -641,10 +609,6 @@ function AnalyticsTab({ requests }: { requests: FlintRequest[] }) {
 
   return (
     <div className="analytics-layout">
-      <div className="requests-header">
-        <span className="requests-title">Network Analytics</span>
-      </div>
-
       <div className="metrics-grid">
         <div className="metric-card">
           <div className="metric-label">24h Volume</div>
@@ -692,10 +656,6 @@ function AnalyticsTab({ requests }: { requests: FlintRequest[] }) {
 function ApiTab() {
   return (
     <div className="api-layout">
-      <div className="requests-header">
-        <span className="requests-title">API Reference</span>
-      </div>
-
       <div className="api-section">
         <div className="api-section-title">Relay Base URL</div>
         <div className="api-url">{RELAY_BASE}</div>
@@ -785,10 +745,6 @@ const status = await client.getStatus(requestId);`}</pre>
 function SettingsTab() {
   return (
     <div className="settings-layout">
-      <div className="requests-header">
-        <span className="requests-title">Configuration</span>
-      </div>
-
       <div className="settings-section">
         <div className="settings-title">Relay</div>
         <div className="settings-row">
@@ -827,10 +783,6 @@ function SettingsTab() {
           <span className="settings-label">Role</span>
           <span className="settings-value">operator</span>
         </div>
-      </div>
-
-      <div className="settings-footer">
-        <span className="settings-tagline">Every intent. Every bid. Every outcome. On-chain verified.</span>
       </div>
     </div>
   );
