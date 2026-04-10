@@ -65,6 +65,18 @@ export class FlintRelayClient {
     });
   }
 
+  async getSolvers() {
+    return this.request("/solvers", {
+      method: "GET",
+    });
+  }
+
+  async getAnalyticsSummary() {
+    return this.request("/analytics/summary", {
+      method: "GET",
+    });
+  }
+
   private async request(path: string, init: RequestInit) {
     const response = await fetch(`${this.baseUrl}${path}`, {
       ...init,

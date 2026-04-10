@@ -108,5 +108,16 @@ test("relay lifecycle creates, quotes, selects, and reports status", async () =>
   assert.equal(status.selectedQuoteId, executed.selectedQuote.quoteId);
   assert.equal(status.quotes.length, 2);
 
+  const solversResponse = await fetch(`${base}/solvers`);
+  assert.equal(solversResponse.status, 200);
+  const solvers = await solversResponse.json();
+  assert.equal(solvers.solvers.length, 2);
+
+  const analyticsResponse = await fetch(`${base}/analytics/summary`);
+  assert.equal(analyticsResponse.status, 200);
+  const analytics = await analyticsResponse.json();
+  assert.equal(analytics.totalRequests, 1);
+  assert.equal(analytics.quoteCount, 2);
+
   server.close();
 });
