@@ -1,7 +1,7 @@
+use crate::errors::FlintError;
+use crate::state::{BidAccount, IntentAccount, IntentStatus};
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Token, TokenAccount, Transfer};
-use crate::state::{BidAccount, IntentAccount, IntentStatus};
-use crate::errors::FlintError;
 
 pub fn handler(ctx: Context<SettleAuction>) -> Result<()> {
     let clock = Clock::get()?;
@@ -18,10 +18,7 @@ pub fn handler(ctx: Context<SettleAuction>) -> Result<()> {
             current_slot > intent.close_at_slot,
             FlintError::AuctionStillOpen
         );
-        require!(
-            intent.winning_bid.is_some(),
-            FlintError::NoBidsReceived
-        );
+        require!(intent.winning_bid.is_some(), FlintError::NoBidsReceived);
         require!(
             intent.winning_bid == Some(ctx.accounts.winning_bid.key()),
             FlintError::NotWinningBid

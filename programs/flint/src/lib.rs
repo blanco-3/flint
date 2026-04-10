@@ -32,4 +32,19 @@ pub mod flint {
     pub fn settle_auction(ctx: Context<SettleAuction>) -> Result<()> {
         instructions::settle_auction::handler(ctx)
     }
+
+    /// 솔버 레지스트리 등록 및 담보금 예치
+    pub fn register_solver(ctx: Context<RegisterSolver>, stake_amount: u64) -> Result<()> {
+        instructions::register_solver::handler(ctx, stake_amount)
+    }
+
+    /// 경매가 만료되고 입찰이 없을 때 인텐트 취소 및 환불
+    pub fn cancel_intent(ctx: Context<CancelIntent>) -> Result<()> {
+        instructions::cancel_intent::handler(ctx)
+    }
+
+    /// 낙찰 후 불이행한 솔버를 슬래싱
+    pub fn slash_solver(ctx: Context<SlashSolver>) -> Result<()> {
+        instructions::slash_solver::handler(ctx)
+    }
 }

@@ -14,6 +14,9 @@ pub enum FlintError {
     #[msg("경매 창이 아직 열려 있습니다")]
     AuctionStillOpen,
 
+    #[msg("경매 창이 아직 열려 있어 취소 불가합니다")]
+    AuctionWindowStillOpen,
+
     #[msg("입찰 금액이 최소 output 미만입니다")]
     BidBelowMinimum,
 
@@ -28,6 +31,9 @@ pub enum FlintError {
 
     #[msg("이미 정산된 입찰입니다")]
     AlreadySettled,
+
+    #[msg("이미 입찰이 있어 취소 불가합니다")]
+    HasActiveBid,
 
     #[msg("담보금이 최소 요건에 미달합니다")]
     InsufficientStake,

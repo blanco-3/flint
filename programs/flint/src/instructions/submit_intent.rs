@@ -1,7 +1,7 @@
+use crate::errors::FlintError;
+use crate::state::{IntentAccount, IntentStatus, AUCTION_WINDOW_SLOTS};
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Mint, Token, TokenAccount, Transfer};
-use crate::state::{IntentAccount, IntentStatus, AUCTION_WINDOW_SLOTS};
-use crate::errors::FlintError;
 
 /// nonce: 클라이언트가 제공하는 유니크 값 (unix timestamp 권장)
 /// seeds에 Clock::get()을 직접 쓰면 스택이 넘치므로 인자로 받음

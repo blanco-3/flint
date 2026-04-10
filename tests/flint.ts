@@ -15,7 +15,7 @@ import { assert } from "chai";
 // IDL 타입은 자동생성 없이 수동 로드
 import { createRequire } from "module";
 const require = createRequire(import.meta.url);
-const idl = require("../target/idl/flint.json");
+const idl = require("../idl/flint.json");
 
 describe("flint", () => {
   const provider = anchor.AnchorProvider.env();
@@ -297,5 +297,154 @@ describe("flint", () => {
 
     console.log("  솔버 input 수령:", (solverInputAfter - solverInputBefore).toString());
     console.log("  유저 output 수령:", (userOutputAfter - userOutputBefore).toString());
+  });
+
+  it("솔버가 레지스트리에 등록한다", async () => {
+    const [solverRegistryPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("solver"), solver.publicKey.toBuffer()],
+      programId
+    );
+
+    const tx = await program.methods
+      .registerSolver(new BN(100_000_000))
+      .accounts({
+        solver: solver.publicKey,
+        solverRegistry: solverRegistryPda,
+        systemProgram: SystemProgram.programId,
+      })
+      .signers([solver])
+      .rpc();
+
+    console.log("  register_solver tx:", tx);
+
+    const registryAccount = await program.account.solverRegistryAccount.fetch(
+      solverRegistryPda
+    );
+    assert.equal(registryAccount.solver.toBase58(), solver.publicKey.toBase58());
+    assert.equal(registryAccount.stakeAmount.toString(), "100000000");
+    assert.equal(registryAccount.reputationScore.toString(), "1000");
+  });
+
+  it("유저가 인텐트를 취소하고 환불받는다", async () => {
+    const cancelNonce = new BN(Date.now() + 1);
+    const [intentPda] = PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("intent"),
+        user.publicKey.toBuffer(),
+        cancelNonce.toArrayLike(Buffer, "le", 8),
+      ],
+      programId
+    );
+
+    const escrowAta = await getAssociatedTokenAddress(inputMint, intentPda, true);
+    const inputAmount = new BN(50_000_000);
+    const minOutputAmount = new BN(45_000_000);
+    const userInputBefore = BigInt(
+      (await provider.connection.getTokenAccountBalance(userInputAta)).value.amount
+    );
+
+    await program.methods
+      .submitIntent(inputAmount, minOutputAmount, cancelNonce)
+      .accounts({
+        user: user.publicKey,
+        inputMint,
+        outputMint,
+        userTokenAccount: userInputAta,
+        escrowTokenAccount: escrowAta,
+        intent: intentPda,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+        rent: SYSVAR_RENT_PUBKEY,
+      })
+      .signers([user])
+      .rpc();
+
+    const intentBeforeCancel = await program.account.intentAccount.fetch(intentPda);
+    const closeAtSlot = intentBeforeCancel.closeAtSlot.toNumber();
+    let currentSlot = await provider.connection.getSlot();
+    while (currentSlot <= closeAtSlot) {
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      currentSlot = await provider.connection.getSlot();
+    }
+
+    const tx = await program.methods
+      .cancelIntent()
+      .accounts({
+        user: user.publicKey,
+        intent: intentPda,
+        escrowTokenAccount: escrowAta,
+        userTokenAccount: userInputAta,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+      })
+      .signers([user])
+      .rpc();
+
+    console.log("  cancel_intent tx:", tx);
+
+    const intentAfterCancel = await program.account.intentAccount.fetch(intentPda);
+    assert.deepEqual(intentAfterCancel.status, { cancelled: {} });
+
+    const userInputAfter = BigInt(
+      (await provider.connection.getTokenAccountBalance(userInputAta)).value.amount
+    );
+    assert.equal(userInputAfter, userInputBefore);
+  });
+
+  it("낙찰 솔버가 슬래싱된다", async () => {
+    const [intentPda] = PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("intent"),
+        user.publicKey.toBuffer(),
+        NONCE.toArrayLike(Buffer, "le", 8),
+      ],
+      programId
+    );
+
+    const [bidPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("bid"), intentPda.toBuffer(), solver.publicKey.toBuffer()],
+      programId
+    );
+
+    const [solverRegistryPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("solver"), solver.publicKey.toBuffer()],
+      programId
+    );
+
+    const registryBefore = await program.account.solverRegistryAccount.fetch(
+      solverRegistryPda
+    );
+
+    const tx = await program.methods
+      .slashSolver()
+      .accounts({
+        authority: provider.wallet.publicKey,
+        solver: solver.publicKey,
+        solverRegistry: solverRegistryPda,
+        intent: intentPda,
+        winningBid: bidPda,
+        systemProgram: SystemProgram.programId,
+      })
+      .rpc();
+
+    console.log("  slash_solver tx:", tx);
+
+    const registryAfter = await program.account.solverRegistryAccount.fetch(
+      solverRegistryPda
+    );
+    assert.equal(
+      registryAfter.stakeAmount.toString(),
+      new BN(registryBefore.stakeAmount.toString())
+        .mul(new BN(8))
+        .div(new BN(10))
+        .toString()
+    );
+    assert.equal(
+      BigInt(registryBefore.reputationScore.toString()) -
+        BigInt(registryAfter.reputationScore.toString()),
+      BigInt(100)
+    );
   });
 });

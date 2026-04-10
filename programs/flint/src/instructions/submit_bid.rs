@@ -1,6 +1,6 @@
-use anchor_lang::prelude::*;
-use crate::state::{BidAccount, IntentAccount, IntentStatus};
 use crate::errors::FlintError;
+use crate::state::{BidAccount, IntentAccount, IntentStatus};
+use anchor_lang::prelude::*;
 
 pub fn handler(ctx: Context<SubmitBid>, output_amount: u64) -> Result<()> {
     let clock = Clock::get()?;

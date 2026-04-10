@@ -211,6 +211,161 @@
         }
       ],
       "args": []
+    },
+    {
+      "name": "register_solver",
+      "discriminator": [
+        143,
+        125,
+        182,
+        215,
+        172,
+        69,
+        137,
+        105
+      ],
+      "accounts": [
+        {
+          "name": "solver",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "solver_registry",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  111,
+                  108,
+                  118,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "solver"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "stake_amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "cancel_intent",
+      "discriminator": [
+        67,
+        73,
+        238,
+        244,
+        208,
+        89,
+        225,
+        59
+      ],
+      "accounts": [
+        {
+          "name": "user",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "intent",
+          "writable": true
+        },
+        {
+          "name": "escrow_token_account",
+          "writable": true
+        },
+        {
+          "name": "user_token_account",
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJe1bmd"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "slash_solver",
+      "discriminator": [
+        237,
+        218,
+        44,
+        30,
+        92,
+        245,
+        166,
+        176
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "solver"
+        },
+        {
+          "name": "solver_registry",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  111,
+                  108,
+                  118,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "solver"
+              }
+            ]
+          }
+        },
+        {
+          "name": "intent"
+        },
+        {
+          "name": "winning_bid"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
     }
   ],
   "accounts": [
@@ -277,36 +432,46 @@
     },
     {
       "code": 6004,
+      "name": "AuctionWindowStillOpen",
+      "msg": "경매 창이 아직 열려 있어 취소 불가합니다"
+    },
+    {
+      "code": 6005,
       "name": "BidBelowMinimum",
       "msg": "입찰 금액이 최소 output 미만입니다"
     },
     {
-      "code": 6005,
+      "code": 6006,
       "name": "BidNotHigherThanBest",
       "msg": "입찰 금액이 현재 최고가 이하입니다"
     },
     {
-      "code": 6006,
+      "code": 6007,
       "name": "NoBidsReceived",
       "msg": "입찰이 없습니다"
     },
     {
-      "code": 6007,
+      "code": 6008,
       "name": "NotWinningBid",
       "msg": "낙찰 입찰이 아닙니다"
     },
     {
-      "code": 6008,
+      "code": 6009,
       "name": "AlreadySettled",
       "msg": "이미 정산된 입찰입니다"
     },
     {
-      "code": 6009,
+      "code": 6010,
+      "name": "HasActiveBid",
+      "msg": "이미 입찰이 있어 취소 불가합니다"
+    },
+    {
+      "code": 6011,
       "name": "InsufficientStake",
       "msg": "담보금이 최소 요건에 미달합니다"
     },
     {
-      "code": 6010,
+      "code": 6012,
       "name": "SolverAlreadyRegistered",
       "msg": "솔버가 이미 등록되어 있습니다"
     }
