@@ -649,17 +649,13 @@ export default function App() {
 
       <section className="hero-stage">
         <div className="stage-copy">
-          <h1>Swap safer. Exit faster. Keep panic away from fills.</h1>
-          <p>
-            Flint Guard wraps the Flint proof stack in a warm, testable trading shell: route
-            compare, risk explain, panic-order triage, and deterministic demo flows.
-          </p>
+          <h1>Trade safer.<br />Exit faster.</h1>
+          <p>Route compare, risk explain, and panic-order triage — powered by the Flint proof stack.</p>
         </div>
 
         {dataMode === "demo" ? (
           <Banner tone="warning">
-            Seeded demo mode is active. Flint simulates route execution and panic cancellation so
-            the full product story stays deterministic for judges.
+            Seeded demo active — route execution and panic cancellation are simulated for judges.
           </Banner>
         ) : null}
 
@@ -667,7 +663,7 @@ export default function App() {
         {comparisonError ? <Banner tone="critical">{comparisonError}</Banner> : null}
         {orderError ? <Banner tone="warning">{orderError}</Banner> : null}
 
-        <section className="trade-shell">
+        <section className={`trade-shell${activePanel !== "trade" ? " wide-panel" : ""}`}>
           <div className="shell-header">
             <div className="shell-tabs">
               <ShellTab
@@ -1056,11 +1052,7 @@ export default function App() {
           ) : null}
         </section>
 
-        <div className="stage-landscape" aria-hidden="true">
-          <div className="landscape ridge-left" />
-          <div className="landscape ridge-center" />
-          <div className="landscape ridge-right" />
-        </div>
+        <CanyonLandscape />
       </section>
     </div>
   );
@@ -1075,30 +1067,47 @@ function FlintMark() {
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden="true"
     >
+      {/* Flint rock body */}
       <path
-        d="M15 40.5L22.5 14H44L52 31L41.5 50H20.5L15 40.5Z"
-        fill="#F3E2C2"
-        stroke="#4E3528"
-        strokeWidth="3"
+        d="M12 46L18 16L28 10L44 14L52 28L48 50L30 56L16 52Z"
+        fill="#2a1810"
+        stroke="#c06030"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+      />
+      {/* Rock facets — light */}
+      <path
+        d="M18 16L28 10L44 14L36 28Z"
+        fill="#3d2218"
+        stroke="#d07040"
+        strokeWidth="1"
         strokeLinejoin="round"
       />
       <path
-        d="M22.5 14L31 24L44 14"
-        stroke="#9D5B35"
-        strokeWidth="3"
-        strokeLinecap="round"
-      />
-      <path
-        d="M20.5 50L31 24L41.5 50"
-        stroke="#7A4A30"
-        strokeWidth="3"
-        strokeLinecap="round"
+        d="M18 16L36 28L16 52L12 46Z"
+        fill="#341c12"
+        stroke="#b05828"
+        strokeWidth="1"
         strokeLinejoin="round"
       />
       <path
-        d="M48 8L50 12L54 14L50 16L48 20L46 16L42 14L46 12L48 8Z"
-        fill="#F7A24A"
+        d="M36 28L44 14L52 28L48 50L30 56L16 52Z"
+        fill="#2e1a10"
+        stroke="#c06030"
+        strokeWidth="1"
+        strokeLinejoin="round"
       />
+      {/* Spark */}
+      <path
+        d="M50 8L52 13L57 15L52 17L50 22L48 17L43 15L48 13Z"
+        fill="#f08030"
+        stroke="#ffb060"
+        strokeWidth="0.8"
+        strokeLinejoin="round"
+      />
+      {/* Spark trail */}
+      <line x1="46" y1="18" x2="40" y2="24" stroke="#f08030" strokeWidth="1" strokeLinecap="round" opacity="0.5"/>
+      <line x1="44" y1="20" x2="39" y2="27" stroke="#f08030" strokeWidth="0.8" strokeLinecap="round" opacity="0.3"/>
     </svg>
   );
 }
@@ -1681,6 +1690,46 @@ function describeComparison(comparison: QuoteComparison) {
 
 function dedupeStrings(values: string[]) {
   return Array.from(new Set(values.filter(Boolean)));
+}
+
+function CanyonLandscape() {
+  return (
+    <div className="stage-landscape" aria-hidden="true">
+      <svg
+        viewBox="0 0 1440 220"
+        preserveAspectRatio="xMidYMax slice"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        {/* Far layer */}
+        <path
+          d="M0 220 L0 130 Q60 118 120 124 Q180 130 240 108
+             Q300 86 380 98 Q460 110 540 82 Q620 54 700 72
+             Q780 90 860 68 Q940 46 1020 64 Q1100 82 1180 62
+             Q1260 42 1340 58 Q1400 68 1440 62 L1440 220 Z"
+          fill="#130c07"
+        />
+        {/* Mid layer — mesa shape on right */}
+        <path
+          d="M0 220 L0 155 Q80 143 160 150 Q240 157 320 136
+             Q400 115 480 130 Q560 145 640 122 Q720 99 800 116
+             Q860 128 900 118 L900 98 Q920 90 940 92 L940 112
+             Q980 108 1020 118 Q1080 130 1140 112 Q1200 94 1260 108
+             Q1340 124 1400 112 Q1430 106 1440 108 L1440 220 Z"
+          fill="#1c1009"
+        />
+        {/* Near layer — foreground rocks */}
+        <path
+          d="M0 220 L0 178 Q60 168 120 174 Q200 182 280 162
+             Q340 146 400 158 L400 140 Q418 132 436 136 L436 158
+             Q500 158 560 168 Q620 178 680 158 Q740 138 800 152
+             Q860 166 920 150 Q980 134 1040 148 Q1100 162 1140 148
+             L1140 130 Q1158 122 1176 126 L1176 148
+             Q1240 148 1300 160 Q1380 174 1440 162 L1440 220 Z"
+          fill="#271410"
+        />
+      </svg>
+    </div>
+  );
 }
 
 function dedupeQuoteAttempts(
