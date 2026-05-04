@@ -30,7 +30,6 @@ import {
   evaluateQuoteRisk,
   evaluateTriggerOrders,
   formatPolicySummary,
-  statusTone,
 } from "./lib/guard-risk";
 import {
   connectInjectedWallet,
@@ -616,22 +615,6 @@ export default function App() {
         </div>
 
         <div className="nav-actions">
-          <span className="nav-pill">Solana</span>
-          <span className="nav-pill">{dataMode === "demo" ? "Seeded demo" : "Live APIs"}</span>
-          <div className="status-stack">
-            <span className={`pill ${safeMode ? "pill-safe" : "pill-live"}`}>
-              {safeMode ? "safe mode on" : "safe mode off"}
-            </span>
-            <span className={`pill ${panicMode ? "pill-alert" : "pill-muted"}`}>
-              {panicMode ? "panic mode armed" : "panic mode idle"}
-            </span>
-          </div>
-          <button className="ghost-button" onClick={handleResetSession}>
-            Reset
-          </button>
-          <button className="ghost-button" onClick={handleExportBundle}>
-            Export
-          </button>
           {walletAddress ? (
             <div className="wallet-card">
               <span className="wallet-label">{shortenAddress(walletAddress)}</span>
@@ -696,161 +679,117 @@ export default function App() {
           </div>
 
           {activePanel === "trade" ? (
-            <div className="trade-panel">
-              <div className="trade-grid">
-                {/* LEFT: Swap form only */}
-                <div className="trade-form-col">
-                  <form className="cow-form" onSubmit={handleEvaluateRoutes}>
-                    <div className="swap-box">
-                      <div className="swap-box-label">You sell</div>
-                      <div className="swap-box-row">
-                        <input
-                          className="swap-amount-input"
-                          value={form.amount}
-                          onChange={(event) =>
-                            setForm((current) => ({ ...current, amount: event.target.value }))
-                          }
-                        />
-                        <select
-                          className="swap-token-select"
-                          value={form.inputMint}
-                          onChange={(event) =>
-                            setForm((current) => ({ ...current, inputMint: event.target.value }))
-                          }
-                        >
-                          {tokenChoices().map((token) => (
-                            <option key={token.mint} value={token.mint}>
-                              {token.symbol}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-
-                    <button type="button" className="switch-orb" onClick={flipPair}>
-                      ⇅
-                    </button>
-
-                    <div className="swap-box">
-                      <div className="swap-box-label">You buy</div>
-                      <div className="swap-box-row">
-                        <div className="swap-readout">
-                          {comparison
-                            ? formatAtomic(
-                                (comparison.executionTarget === "safe"
-                                  ? comparison.safeQuote?.outAmount
-                                  : comparison.baseQuote.outAmount) ?? "0",
-                                form.outputMint
-                              )
-                            : "Protected receive"}
-                        </div>
-                        <select
-                          className="swap-token-select"
-                          value={form.outputMint}
-                          onChange={(event) =>
-                            setForm((current) => ({ ...current, outputMint: event.target.value }))
-                          }
-                        >
-                          {tokenChoices().map((token) => (
-                            <option key={token.mint} value={token.mint}>
-                              {token.symbol}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-
-                    <div className="slippage-inline">
-                      <span>Slippage</span>
-                      <SlippageField
-                        value={form.slippageBps}
-                        onChange={(value) =>
-                          setForm((current) => ({ ...current, slippageBps: value }))
-                        }
-                      />
-                    </div>
-
-                    <button className="primary-button trade-submit" type="submit" disabled={isEvaluating}>
-                      {isEvaluating ? "Checking route safety..." : "Check route safety"}
-                    </button>
-                  </form>
-
-                  <div className="trade-chip-row">
-                    <span className="trade-chip">{safeMode ? "safe mode" : "price mode"}</span>
-                    <span className="trade-chip">{panicMode ? "panic armed" : "panic idle"}</span>
-                    <span className="trade-chip">{form.slippageBps} bps</span>
-                  </div>
-                </div>
-
-                {/* RIGHT: Route analysis */}
-                <div className="trade-info-col">
-                  <div className="trade-info-header">
-                    <div>
-                      <span className="panel-kicker">Execution</span>
-                      <h2>Protected swap</h2>
-                    </div>
-                    <div className="mini-metrics">
-                      <MiniMetric label="Mode" value={dataMode === "demo" ? "Demo" : "Live"} />
-                      <MiniMetric label="Policy" value={policyPreset} />
-                    </div>
-                  </div>
-
-                  <div className="compact-route-grid">
-                    <CompactRouteCard
-                      title="Best price"
-                      status={comparison?.baseAssessment.status ?? "warn"}
-                      outputLabel={
-                        comparison
-                          ? formatAtomic(comparison.baseQuote.outAmount, comparison.baseQuote.outputMint)
-                          : "not loaded"
-                      }
-                      detail="Raw market route"
-                    />
-                    <CompactRouteCard
-                      title="Safer route"
-                      status={comparison?.safeAssessment?.status ?? "warn"}
-                      outputLabel={
-                        comparison?.safeQuote
-                          ? formatAtomic(comparison.safeQuote.outAmount, comparison.safeQuote.outputMint)
-                          : "not loaded"
-                      }
-                      detail="Flint-filtered fallback"
-                    />
-                  </div>
-
-                  <div className="trade-summary-bar">
-                    <SummaryPill
-                      label="Target"
-                      value={
-                        comparison
-                          ? comparison.executionTarget === "safe"
-                            ? "safer route"
-                            : comparison.executionTarget === "base"
-                              ? "best route"
-                              : "blocked"
-                          : "—"
-                      }
-                    />
-                    <SummaryPill label="Kernel" value={shortenAddress(devnetDeploy.programId)} />
-                    <SummaryPill label="Policy" value={policy.label} />
-                  </div>
-
-                  <ExecutionBar
-                    comparison={comparison}
-                    dataMode={dataMode}
-                    safeMode={safeMode}
-                    walletAddress={walletAddress}
-                    isExecutingSwap={isExecutingSwap}
-                    onExecuteBase={() => void handleExecuteSwap("base")}
-                    onExecuteSafe={() => void handleExecuteSwap("safe")}
-                    canExecuteBase={canExecuteBase}
-                    canExecuteSafe={canExecuteSafe}
+            <form className="trade-panel" onSubmit={handleEvaluateRoutes}>
+              <div className="swap-box">
+                <div className="swap-box-label">You sell</div>
+                <div className="swap-box-row">
+                  <input
+                    className="swap-amount-input"
+                    value={form.amount}
+                    onChange={(event) =>
+                      setForm((current) => ({ ...current, amount: event.target.value }))
+                    }
                   />
-
-                  <RiskExplanation comparison={comparison} />
+                  <select
+                    className="swap-token-select"
+                    value={form.inputMint}
+                    onChange={(event) =>
+                      setForm((current) => ({ ...current, inputMint: event.target.value }))
+                    }
+                  >
+                    {tokenChoices().map((token) => (
+                      <option key={token.mint} value={token.mint}>
+                        {token.symbol}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
-            </div>
+
+              <button type="button" className="switch-orb" onClick={flipPair}>
+                ⇅
+              </button>
+
+              <div className="swap-box">
+                <div className="swap-box-label">You buy</div>
+                <div className="swap-box-row">
+                  <div className="swap-readout">
+                    {comparison
+                      ? formatAtomic(
+                          (comparison.executionTarget === "safe"
+                            ? comparison.safeQuote?.outAmount
+                            : comparison.baseQuote.outAmount) ?? "0",
+                          form.outputMint
+                        )
+                      : "—"}
+                  </div>
+                  <select
+                    className="swap-token-select"
+                    value={form.outputMint}
+                    onChange={(event) =>
+                      setForm((current) => ({ ...current, outputMint: event.target.value }))
+                    }
+                  >
+                    {tokenChoices().map((token) => (
+                      <option key={token.mint} value={token.mint}>
+                        {token.symbol}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {comparison ? (
+                  <div className="swap-rate-row">
+                    <span className="protected-badge">⬡ Protected</span>
+                    <span>{policy.label} policy</span>
+                  </div>
+                ) : null}
+              </div>
+
+              {comparison ? (
+                <div className="receive-row">
+                  <span>You receive</span>
+                  <strong>
+                    {formatAtomic(
+                      (comparison.executionTarget === "safe"
+                        ? comparison.safeQuote?.outAmount
+                        : comparison.baseQuote.outAmount) ?? "0",
+                      form.outputMint
+                    )}
+                  </strong>
+                </div>
+              ) : null}
+
+              {!walletAddress && dataMode !== "demo" ? (
+                <button
+                  type="button"
+                  className="primary-button trade-submit"
+                  onClick={handleConnectWallet}
+                >
+                  Connect wallet
+                </button>
+              ) : comparison ? (
+                <button
+                  type="button"
+                  className="primary-button trade-submit"
+                  disabled={isExecutingSwap || (!canExecuteBase && !canExecuteSafe)}
+                  onClick={() =>
+                    void handleExecuteSwap(
+                      comparison.executionTarget === "safe" ? "safe" : "base"
+                    )
+                  }
+                >
+                  {isExecutingSwap ? "Confirming..." : "Swap"}
+                </button>
+              ) : (
+                <button
+                  type="submit"
+                  className="primary-button trade-submit"
+                  disabled={isEvaluating}
+                >
+                  {isEvaluating ? "Finding safe route..." : "Get quote"}
+                </button>
+              )}
+            </form>
           ) : null}
 
           {activePanel === "protect" ? (
@@ -1057,32 +996,45 @@ export default function App() {
   );
 }
 
-/*
- * ICON OPTIONS — pick one by changing which component is used below.
- * FlintMarkA: Arrowhead (knapped flint tool, most literal)
- * FlintMarkB: Crystal facets (mineral/gem structure)
- * FlintMarkC: Shield badge with F lettermark
- */
+function Rocky() {
+  return (
+    <svg className="flint-mark" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      {/* Boulder body */}
+      <ellipse cx="21" cy="26" rx="16" ry="13" fill="#7a3010"/>
+      {/* Rocky top ridge */}
+      <path d="M5 26 Q8 19 13 21 Q16 15 19 18 Q21 13 23 16 Q26 12 29 15 Q32 18 35 22 Q37 25 37 26" fill="#8a3814"/>
+      {/* Highlight shimmer */}
+      <ellipse cx="15" cy="20" rx="6" ry="3.5" fill="#a84e20" opacity="0.5"/>
+      {/* Left eye */}
+      <circle cx="15" cy="26" r="2.5" fill="#1a0804"/>
+      <circle cx="15.9" cy="25.1" r="0.9" fill="white" opacity="0.85"/>
+      {/* Right eye */}
+      <circle cx="26" cy="26" r="2.5" fill="#1a0804"/>
+      <circle cx="26.9" cy="25.1" r="0.9" fill="white" opacity="0.85"/>
+      {/* Smile */}
+      <path d="M14 31 Q20.5 36 27 31" stroke="#1a0804" strokeWidth="1.8" strokeLinecap="round" fill="none"/>
+      {/* Crack detail */}
+      <path d="M21 17 L20 22 L22 24" stroke="#4a1606" strokeWidth="0.9" strokeLinecap="round" opacity="0.45"/>
+      {/* Sparks */}
+      <path d="M30 5 L31.8 1.5 L30.5 4.5 L28 3 Z" fill="#f09030"/>
+      <path d="M8 7 L9.2 4 L8.5 6.5 L6.5 5 Z" fill="#f09030"/>
+      <circle cx="33" cy="9" r="1.4" fill="#ffbf40" opacity="0.8"/>
+      <circle cx="7" cy="11" r="1" fill="#ffbf40" opacity="0.6"/>
+    </svg>
+  );
+}
 
 function FlintMarkA() {
   return (
     <svg className="flint-mark" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      {/* Arrowhead body */}
       <path d="M20 4 L33 17 L28 21 L22 38 L20 35 L18 38 L12 21 L7 17 Z"
         fill="#c86020" stroke="#f08840" strokeWidth="1.2" strokeLinejoin="round"/>
-      {/* Left bevel */}
       <path d="M20 4 L7 17 L16 20 Z" fill="#b05018" stroke="none"/>
-      {/* Right bevel */}
       <path d="M20 4 L33 17 L24 20 Z" fill="#d87030" stroke="none"/>
-      {/* Notch lines */}
       <line x1="12" y1="21" x2="16" y2="24" stroke="#804010" strokeWidth="0.8" strokeLinecap="round" opacity="0.6"/>
       <line x1="28" y1="21" x2="24" y2="24" stroke="#804010" strokeWidth="0.8" strokeLinecap="round" opacity="0.6"/>
-      {/* Center ridge */}
       <line x1="20" y1="4" x2="20" y2="35" stroke="#804010" strokeWidth="0.7" opacity="0.35"/>
-      {/* Spark at tip */}
       <path d="M20 3 L21.2 0.5 L20 1.8 L18.8 0.5 Z" fill="#f09840"/>
-      <path d="M22.5 2.5 L24 1" stroke="#f09840" strokeWidth="0.8" strokeLinecap="round" opacity="0.7"/>
-      <path d="M17.5 2.5 L16 1" stroke="#f09840" strokeWidth="0.8" strokeLinecap="round" opacity="0.7"/>
     </svg>
   );
 }
@@ -1090,22 +1042,12 @@ function FlintMarkA() {
 function FlintMarkB() {
   return (
     <svg className="flint-mark" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      {/* Crystal/mineral hexagonal facets */}
       <path d="M20 3 L34 11 L34 29 L20 37 L6 29 L6 11 Z"
         fill="#c06028" stroke="#e88040" strokeWidth="1.2" strokeLinejoin="round"/>
-      {/* Top facet - lighter */}
       <path d="M20 3 L34 11 L20 16 L6 11 Z" fill="#d87030" stroke="none"/>
-      {/* Bottom left facet - darker */}
       <path d="M6 11 L20 16 L6 29 Z" fill="#a04e20" stroke="none"/>
-      {/* Center line */}
-      <line x1="20" y1="3" x2="20" y2="37" stroke="#804018" strokeWidth="0.7" opacity="0.30"/>
-      {/* Horizontal equator line */}
-      <line x1="6" y1="20" x2="34" y2="20" stroke="#804018" strokeWidth="0.7" opacity="0.25"/>
-      {/* Glint / spark top-right */}
       <path d="M31 7 L33 5 L31 6 L29 5 Z" fill="#f8a040"/>
       <circle cx="31" cy="7" r="1.5" fill="#ffbf60" opacity="0.90"/>
-      <line x1="33" y1="5" x2="35" y2="3" stroke="#f8a040" strokeWidth="0.7" strokeLinecap="round" opacity="0.6"/>
-      <line x1="33" y1="7" x2="36" y2="7" stroke="#f8a040" strokeWidth="0.7" strokeLinecap="round" opacity="0.5"/>
     </svg>
   );
 }
@@ -1113,31 +1055,22 @@ function FlintMarkB() {
 function FlintMarkC() {
   return (
     <svg className="flint-mark" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      {/* Shield / badge shape */}
       <path d="M7 7 L33 7 L33 27 L20 37 L7 27 Z"
         fill="#b85818" stroke="#e07830" strokeWidth="1.2" strokeLinejoin="round"/>
-      {/* Inner lighter area */}
       <path d="M10 10 L30 10 L30 25 L20 33 L10 25 Z" fill="#c86828" stroke="none"/>
-      {/* F letterform */}
       <path d="M14 14 L26 14" stroke="#fde8cc" strokeWidth="2.5" strokeLinecap="round"/>
       <path d="M14 14 L14 26" stroke="#fde8cc" strokeWidth="2.5" strokeLinecap="round"/>
       <path d="M14 20 L23 20" stroke="#fde8cc" strokeWidth="2.5" strokeLinecap="round"/>
-      {/* Spark top-right corner */}
       <path d="M30 5 L32 3 L30 4 L28 3 Z" fill="#f09030"/>
-      <line x1="32" y1="3" x2="34" y2="1" stroke="#f09030" strokeWidth="0.8" strokeLinecap="round" opacity="0.7"/>
-      <line x1="33" y1="5" x2="35" y2="5" stroke="#f09030" strokeWidth="0.8" strokeLinecap="round" opacity="0.5"/>
     </svg>
   );
 }
 
-/* Active icon — change to FlintMarkB or FlintMarkC to try the others */
 function FlintMark() {
-  // Options: FlintMarkA (arrowhead), FlintMarkB (crystal), FlintMarkC (shield badge)
-  return <FlintMarkA />;
+  return <Rocky />;
 }
 
-// Keep unused variants accessible — swap above to try them
-export { FlintMarkB, FlintMarkC };
+export { FlintMarkA, FlintMarkB, FlintMarkC };
 
 function ShellTab({
   active,
@@ -1159,132 +1092,6 @@ function ShellTab({
   );
 }
 
-function MiniMetric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="mini-metric">
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
-  );
-}
-
-function SummaryPill({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="summary-pill">
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
-  );
-}
-
-function CompactRouteCard({
-  title,
-  status,
-  outputLabel,
-  detail,
-}: {
-  title: string;
-  status: "safe" | "warn" | "blocked";
-  outputLabel: string;
-  detail: string;
-}) {
-  return (
-    <div className="compact-route-card">
-      <div className="compact-route-head">
-        <strong>{title}</strong>
-        <span className={`status-tag ${statusTone(status)}`}>{status}</span>
-      </div>
-      <div className="compact-route-value">{outputLabel}</div>
-      <p>{detail}</p>
-    </div>
-  );
-}
-
-function ExecutionBar({
-  comparison,
-  dataMode,
-  safeMode,
-  walletAddress,
-  isExecutingSwap,
-  onExecuteBase,
-  onExecuteSafe,
-  canExecuteBase,
-  canExecuteSafe,
-}: {
-  comparison: QuoteComparison | null;
-  dataMode: GuardDataMode;
-  safeMode: boolean;
-  walletAddress: string | null;
-  isExecutingSwap: boolean;
-  onExecuteBase: () => void;
-  onExecuteSafe: () => void;
-  canExecuteBase: boolean;
-  canExecuteSafe: boolean;
-}) {
-  return (
-    <div className="execution-bar">
-      <div>
-        <strong>Execution posture</strong>
-        <p>
-          {comparison
-            ? describeComparison(comparison)
-            : "No route loaded. Flint will compare the best route against a safety-filtered fallback."}
-        </p>
-      </div>
-      <div className="execution-actions">
-        <button className="ghost-button" disabled={!canExecuteBase} onClick={onExecuteBase}>
-          {isExecutingSwap
-            ? "Sending..."
-            : safeMode
-              ? "Base route locked"
-              : dataMode === "demo"
-                ? "Simulate base route"
-                : "Execute base route"}
-        </button>
-        <button className="primary-button" disabled={!canExecuteSafe} onClick={onExecuteSafe}>
-          {dataMode === "demo"
-            ? "Simulate safer route"
-            : walletAddress
-              ? "Execute safer route"
-              : "Connect wallet to execute"}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function RiskExplanation({ comparison }: { comparison: QuoteComparison | null }) {
-  const reasons = comparison
-    ? comparison.baseAssessment.reasons.concat(comparison.safeAssessment?.reasons ?? [])
-    : [];
-
-  return (
-    <div className="explanation-panel">
-      <div className="panel-header compact">
-        <div>
-          <span className="panel-kicker">Why Flint rejected the route</span>
-          <h3>Risk explanation</h3>
-        </div>
-      </div>
-
-      {reasons.length ? (
-        <div className="reason-list">
-          {reasons.map((reason) => (
-            <ReasonCard key={reason.id} reason={reason} />
-          ))}
-        </div>
-      ) : (
-        <div className="empty-state">
-          <strong>No blockers yet</strong>
-          <p>
-            Flint will explain blocked venues, weak pools, flagged tokens, panic signals, and
-            suspicious route structure here.
-          </p>
-        </div>
-      )}
-    </div>
-  );
-}
 
 function OrderTable({
   assessments,
@@ -1723,72 +1530,127 @@ function CanyonLandscape() {
   return (
     <div className="stage-landscape" aria-hidden="true">
       <svg
-        viewBox="0 0 1440 300"
+        viewBox="0 0 1440 320"
         preserveAspectRatio="xMidYMax slice"
         xmlns="http://www.w3.org/2000/svg"
       >
-        {/* Sky glow — warm orange haze near horizon */}
         <defs>
           <linearGradient id="horizonGlow" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="#c05810" stopOpacity="0"/>
-            <stop offset="100%" stopColor="#7a3010" stopOpacity="0.5"/>
+            <stop offset="100%" stopColor="#7a3010" stopOpacity="0.6"/>
           </linearGradient>
+          <radialGradient id="rockyGlow" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="#f09030" stopOpacity="0.25"/>
+            <stop offset="100%" stopColor="#f09030" stopOpacity="0"/>
+          </radialGradient>
         </defs>
-        <rect x="0" y="0" width="1440" height="300" fill="url(#horizonGlow)"/>
+        <rect x="0" y="0" width="1440" height="320" fill="url(#horizonGlow)"/>
 
-        {/* Layer 1 — distant canyon walls, very far back */}
+        {/* Layer 1 — distant canyon walls */}
         <path
-          d="M0 300 L0 180 Q40 165 90 170 Q140 175 190 155
-             Q240 135 300 148 Q360 160 420 138 Q480 116 550 130
-             Q620 144 700 118 Q770 92 850 108 Q920 124 1000 100
-             Q1070 76 1150 92 Q1220 108 1300 86 Q1380 64 1440 72
-             L1440 300 Z"
-          fill="#3a1a08"
-          opacity="0.9"
+          d="M0 320 L0 175 Q40 158 90 164 Q140 170 190 148
+             Q240 126 300 140 Q360 154 420 130 Q480 106 550 122
+             Q620 138 700 110 Q770 82 850 100 Q920 118 1000 92
+             Q1070 66 1150 84 Q1220 102 1300 78 Q1380 54 1440 64
+             L1440 320 Z"
+          fill="#3a1a08" opacity="0.9"
         />
 
-        {/* Layer 2 — mid canyon, left butte */}
+        {/* Layer 2 — mid canyon */}
         <path
-          d="M0 300 L0 210 Q50 198 110 205 Q170 212 230 190
-             Q270 174 310 188 L310 162 Q322 152 334 155 Q346 158 358 152
-             L358 165 Q400 155 450 170 Q500 184 560 165
-             Q620 146 680 160 Q740 174 810 155
-             Q880 136 950 152 Q1020 168 1090 148
-             L1090 126 Q1104 116 1118 120 L1118 148
-             Q1170 144 1230 158 Q1300 174 1360 156
-             Q1410 142 1440 145 L1440 300 Z"
-          fill="#521f08"
-          opacity="0.95"
+          d="M0 320 L0 205 Q50 192 110 198 Q170 205 230 183
+             Q270 167 310 181 L310 154 Q322 144 336 148 Q350 152 360 144
+             L360 158 Q400 148 450 164 Q500 180 560 158
+             Q620 138 680 154 Q740 168 810 148
+             Q880 128 950 146 Q1020 162 1090 140
+             L1090 118 Q1106 108 1120 112 L1120 142
+             Q1172 136 1232 152 Q1302 168 1362 148
+             Q1412 134 1440 138 L1440 320 Z"
+          fill="#521f08" opacity="0.95"
         />
 
-        {/* Layer 3 — near foreground rocks with plateau tops */}
+        {/* Layer 3 — near foreground rocks */}
         <path
-          d="M0 300 L0 240 Q60 228 130 235 Q200 242 260 222
-             Q300 208 340 218 L340 200 Q354 190 368 194 L368 220
-             Q430 216 500 228 Q560 240 610 222
-             Q650 208 690 218 L690 202 Q702 194 714 198 L714 222
-             Q780 218 850 232 Q920 246 970 226
-             Q1010 210 1050 224 L1050 204
-             Q1066 194 1082 198 Q1098 202 1114 196
-             L1114 218 Q1170 210 1230 224
-             Q1300 238 1360 220 Q1410 206 1440 210
-             L1440 300 Z"
+          d="M0 320 L0 245 Q60 232 130 238 Q200 245 260 224
+             Q300 210 340 220 L340 202 Q355 191 370 196 L370 222
+             Q432 218 502 230 Q562 242 612 223
+             Q652 208 692 220 L692 203 Q705 193 718 197 L718 224
+             Q782 220 852 234 Q922 248 972 228
+             Q1012 212 1052 226 L1052 206
+             Q1068 196 1084 200 Q1100 204 1116 197
+             L1116 220 Q1172 212 1232 226
+             Q1302 240 1362 222 Q1412 208 1440 212
+             L1440 320 Z"
           fill="#6b2a0c"
         />
 
-        {/* Layer 4 — closest foreground, darkest */}
+        {/* Layer 4 — closest foreground */}
         <path
-          d="M0 300 L0 268 Q80 256 160 264 Q240 272 320 256
-             Q380 244 440 256 L440 240 Q454 230 468 235 L468 258
-             Q540 252 620 264 Q700 276 760 260
-             Q800 248 840 260 L840 244
-             Q856 234 872 238 L872 262
-             Q940 256 1020 268 Q1100 280 1160 264
-             Q1220 248 1280 264 L1280 248
-             Q1298 238 1316 242 L1316 266
-             Q1380 260 1440 264 L1440 300 Z"
+          d="M0 320 L0 272 Q80 260 160 268 Q240 276 320 260
+             Q380 248 440 260 L440 244 Q455 233 470 238 L470 262
+             Q542 256 622 268 Q702 280 762 264
+             Q802 252 842 264 L842 248
+             Q858 237 874 241 L874 266
+             Q942 260 1022 272 Q1102 284 1162 268
+             Q1222 252 1282 268 L1282 252
+             Q1300 241 1318 245 L1318 269
+             Q1382 263 1440 267 L1440 320 Z"
           fill="#7a3010"
         />
+
+        {/* Rocky glow halo */}
+        <ellipse cx="720" cy="218" rx="70" ry="40" fill="url(#rockyGlow)"/>
+
+        {/* Rocky character — sitting on the center foreground rock */}
+        <g transform="translate(720, 215)">
+          {/* Shadow under Rocky */}
+          <ellipse cx="0" cy="34" rx="30" ry="6" fill="#3a1006" opacity="0.5"/>
+          {/* Body boulder */}
+          <ellipse cx="0" cy="12" rx="28" ry="24" fill="#6b2a0c"/>
+          {/* Rocky top ridge detail */}
+          <path d="M-28 12 Q-22 -2 -16 2 Q-10 -8 -4 -3 Q0 -12 4 -5 Q10 -9 16 0 Q22 -3 28 10" fill="#7a3414" stroke="none"/>
+          {/* Highlight */}
+          <ellipse cx="-10" cy="2" rx="10" ry="6" fill="#904020" opacity="0.45"/>
+          {/* Left eye */}
+          <circle cx="-10" cy="12" r="4" fill="#1a0804"/>
+          <circle cx="-8.4" cy="10.4" r="1.4" fill="white" opacity="0.9"/>
+          {/* Right eye */}
+          <circle cx="10" cy="12" r="4" fill="#1a0804"/>
+          <circle cx="11.6" cy="10.4" r="1.4" fill="white" opacity="0.9"/>
+          {/* Smile */}
+          <path d="M-10 22 Q0 30 10 22" stroke="#1a0804" strokeWidth="2.5" strokeLinecap="round" fill="none"/>
+          {/* Rock crack */}
+          <path d="M2 -2 L0 6 L3 10" stroke="#3a1006" strokeWidth="1.2" strokeLinecap="round" opacity="0.5"/>
+          {/* Little arm nubs */}
+          <ellipse cx="-28" cy="18" rx="8" ry="6" fill="#5a2008"/>
+          <ellipse cx="28" cy="18" rx="8" ry="6" fill="#5a2008"/>
+          {/* Sparks above */}
+          <path d="M-6 -16 L-4 -24 L-5.5 -19 L-9 -21 Z" fill="#f09030"/>
+          <path d="M8 -14 L10 -22 L8.5 -17 L5.5 -20 Z" fill="#f09030"/>
+          <circle cx="16" cy="-22" r="2.5" fill="#ffbf40" opacity="0.75"/>
+          <circle cx="-14" cy="-20" r="2" fill="#ffbf40" opacity="0.65"/>
+          <circle cx="2" cy="-27" r="1.5" fill="#ffd060" opacity="0.8"/>
+        </g>
+
+        {/* Small rocky pebbles flanking */}
+        <g transform="translate(620, 236)">
+          <ellipse cx="0" cy="0" rx="14" ry="11" fill="#5a2008"/>
+          <ellipse cx="-4" cy="-4" rx="5" ry="3" fill="#7a3414" opacity="0.5"/>
+          <circle cx="-4" cy="-1" r="2" fill="#1a0804"/>
+          <circle cx="4" cy="-1" r="2" fill="#1a0804"/>
+          <circle cx="-3.3" cy="-1.7" r="0.7" fill="white" opacity="0.8"/>
+          <circle cx="4.7" cy="-1.7" r="0.7" fill="white" opacity="0.8"/>
+          <path d="M-4 4 Q0 7 4 4" stroke="#1a0804" strokeWidth="1.4" strokeLinecap="round" fill="none"/>
+        </g>
+        <g transform="translate(820, 238)">
+          <ellipse cx="0" cy="0" rx="12" ry="10" fill="#5a2008"/>
+          <ellipse cx="-3" cy="-3" rx="4" ry="2.5" fill="#7a3414" opacity="0.5"/>
+          <circle cx="-3" cy="-1" r="1.8" fill="#1a0804"/>
+          <circle cx="3" cy="-1" r="1.8" fill="#1a0804"/>
+          <circle cx="-2.4" cy="-1.6" r="0.6" fill="white" opacity="0.8"/>
+          <circle cx="3.6" cy="-1.6" r="0.6" fill="white" opacity="0.8"/>
+          <path d="M-3 4 Q0 6.5 3 4" stroke="#1a0804" strokeWidth="1.3" strokeLinecap="round" fill="none"/>
+        </g>
       </svg>
     </div>
   );
