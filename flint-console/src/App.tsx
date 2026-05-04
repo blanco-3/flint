@@ -697,19 +697,9 @@ export default function App() {
 
           {activePanel === "trade" ? (
             <div className="trade-panel">
-              <div className="trade-center">
-                <div className="trade-main-card">
-                  <div className="trade-card-top">
-                    <div>
-                      <span className="panel-kicker">Execution</span>
-                      <h2>Protected swap</h2>
-                    </div>
-                    <div className="mini-metrics">
-                      <MiniMetric label="Mode" value={dataMode === "demo" ? "Demo" : "Live"} />
-                      <MiniMetric label="Policy" value={policyPreset} />
-                    </div>
-                  </div>
-
+              <div className="trade-grid">
+                {/* LEFT: Swap form only */}
+                <div className="trade-form-col">
                   <form className="cow-form" onSubmit={handleEvaluateRoutes}>
                     <div className="swap-box">
                       <div className="swap-box-label">You sell</div>
@@ -770,12 +760,6 @@ export default function App() {
                       </div>
                     </div>
 
-                    <div className="trade-chip-row">
-                      <span className="trade-chip">{safeMode ? "safe mode" : "price mode"}</span>
-                      <span className="trade-chip">{panicMode ? "panic armed" : "panic idle"}</span>
-                      <span className="trade-chip">{form.slippageBps} bps</span>
-                    </div>
-
                     <div className="slippage-inline">
                       <span>Slippage</span>
                       <SlippageField
@@ -791,24 +775,24 @@ export default function App() {
                     </button>
                   </form>
 
-                  <div className="trade-summary-bar">
-                    <SummaryPill
-                      label="Execution target"
-                      value={
-                        comparison
-                          ? comparison.executionTarget === "safe"
-                            ? "safer route"
-                            : comparison.executionTarget === "base"
-                              ? "best route"
-                              : "blocked"
-                          : "not loaded"
-                      }
-                    />
-                    <SummaryPill
-                      label="Kernel"
-                      value={shortenAddress(devnetDeploy.programId)}
-                    />
-                    <SummaryPill label="Policy" value={policy.label} />
+                  <div className="trade-chip-row">
+                    <span className="trade-chip">{safeMode ? "safe mode" : "price mode"}</span>
+                    <span className="trade-chip">{panicMode ? "panic armed" : "panic idle"}</span>
+                    <span className="trade-chip">{form.slippageBps} bps</span>
+                  </div>
+                </div>
+
+                {/* RIGHT: Route analysis */}
+                <div className="trade-info-col">
+                  <div className="trade-info-header">
+                    <div>
+                      <span className="panel-kicker">Execution</span>
+                      <h2>Protected swap</h2>
+                    </div>
+                    <div className="mini-metrics">
+                      <MiniMetric label="Mode" value={dataMode === "demo" ? "Demo" : "Live"} />
+                      <MiniMetric label="Policy" value={policyPreset} />
+                    </div>
                   </div>
 
                   <div className="compact-route-grid">
@@ -834,6 +818,23 @@ export default function App() {
                     />
                   </div>
 
+                  <div className="trade-summary-bar">
+                    <SummaryPill
+                      label="Target"
+                      value={
+                        comparison
+                          ? comparison.executionTarget === "safe"
+                            ? "safer route"
+                            : comparison.executionTarget === "base"
+                              ? "best route"
+                              : "blocked"
+                          : "—"
+                      }
+                    />
+                    <SummaryPill label="Kernel" value={shortenAddress(devnetDeploy.programId)} />
+                    <SummaryPill label="Policy" value={policy.label} />
+                  </div>
+
                   <ExecutionBar
                     comparison={comparison}
                     dataMode={dataMode}
@@ -845,9 +846,7 @@ export default function App() {
                     canExecuteBase={canExecuteBase}
                     canExecuteSafe={canExecuteSafe}
                   />
-                </div>
 
-                <div className="trade-secondary">
                   <RiskExplanation comparison={comparison} />
                 </div>
               </div>
@@ -1058,59 +1057,87 @@ export default function App() {
   );
 }
 
-function FlintMark() {
+/*
+ * ICON OPTIONS — pick one by changing which component is used below.
+ * FlintMarkA: Arrowhead (knapped flint tool, most literal)
+ * FlintMarkB: Crystal facets (mineral/gem structure)
+ * FlintMarkC: Shield badge with F lettermark
+ */
+
+function FlintMarkA() {
   return (
-    <svg
-      className="flint-mark"
-      viewBox="0 0 64 64"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-hidden="true"
-    >
-      {/* Flint rock body */}
-      <path
-        d="M12 46L18 16L28 10L44 14L52 28L48 50L30 56L16 52Z"
-        fill="#2a1810"
-        stroke="#c06030"
-        strokeWidth="1.5"
-        strokeLinejoin="round"
-      />
-      {/* Rock facets — light */}
-      <path
-        d="M18 16L28 10L44 14L36 28Z"
-        fill="#3d2218"
-        stroke="#d07040"
-        strokeWidth="1"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M18 16L36 28L16 52L12 46Z"
-        fill="#341c12"
-        stroke="#b05828"
-        strokeWidth="1"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M36 28L44 14L52 28L48 50L30 56L16 52Z"
-        fill="#2e1a10"
-        stroke="#c06030"
-        strokeWidth="1"
-        strokeLinejoin="round"
-      />
-      {/* Spark */}
-      <path
-        d="M50 8L52 13L57 15L52 17L50 22L48 17L43 15L48 13Z"
-        fill="#f08030"
-        stroke="#ffb060"
-        strokeWidth="0.8"
-        strokeLinejoin="round"
-      />
-      {/* Spark trail */}
-      <line x1="46" y1="18" x2="40" y2="24" stroke="#f08030" strokeWidth="1" strokeLinecap="round" opacity="0.5"/>
-      <line x1="44" y1="20" x2="39" y2="27" stroke="#f08030" strokeWidth="0.8" strokeLinecap="round" opacity="0.3"/>
+    <svg className="flint-mark" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      {/* Arrowhead body */}
+      <path d="M20 4 L33 17 L28 21 L22 38 L20 35 L18 38 L12 21 L7 17 Z"
+        fill="#c86020" stroke="#f08840" strokeWidth="1.2" strokeLinejoin="round"/>
+      {/* Left bevel */}
+      <path d="M20 4 L7 17 L16 20 Z" fill="#b05018" stroke="none"/>
+      {/* Right bevel */}
+      <path d="M20 4 L33 17 L24 20 Z" fill="#d87030" stroke="none"/>
+      {/* Notch lines */}
+      <line x1="12" y1="21" x2="16" y2="24" stroke="#804010" strokeWidth="0.8" strokeLinecap="round" opacity="0.6"/>
+      <line x1="28" y1="21" x2="24" y2="24" stroke="#804010" strokeWidth="0.8" strokeLinecap="round" opacity="0.6"/>
+      {/* Center ridge */}
+      <line x1="20" y1="4" x2="20" y2="35" stroke="#804010" strokeWidth="0.7" opacity="0.35"/>
+      {/* Spark at tip */}
+      <path d="M20 3 L21.2 0.5 L20 1.8 L18.8 0.5 Z" fill="#f09840"/>
+      <path d="M22.5 2.5 L24 1" stroke="#f09840" strokeWidth="0.8" strokeLinecap="round" opacity="0.7"/>
+      <path d="M17.5 2.5 L16 1" stroke="#f09840" strokeWidth="0.8" strokeLinecap="round" opacity="0.7"/>
     </svg>
   );
 }
+
+function FlintMarkB() {
+  return (
+    <svg className="flint-mark" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      {/* Crystal/mineral hexagonal facets */}
+      <path d="M20 3 L34 11 L34 29 L20 37 L6 29 L6 11 Z"
+        fill="#c06028" stroke="#e88040" strokeWidth="1.2" strokeLinejoin="round"/>
+      {/* Top facet - lighter */}
+      <path d="M20 3 L34 11 L20 16 L6 11 Z" fill="#d87030" stroke="none"/>
+      {/* Bottom left facet - darker */}
+      <path d="M6 11 L20 16 L6 29 Z" fill="#a04e20" stroke="none"/>
+      {/* Center line */}
+      <line x1="20" y1="3" x2="20" y2="37" stroke="#804018" strokeWidth="0.7" opacity="0.30"/>
+      {/* Horizontal equator line */}
+      <line x1="6" y1="20" x2="34" y2="20" stroke="#804018" strokeWidth="0.7" opacity="0.25"/>
+      {/* Glint / spark top-right */}
+      <path d="M31 7 L33 5 L31 6 L29 5 Z" fill="#f8a040"/>
+      <circle cx="31" cy="7" r="1.5" fill="#ffbf60" opacity="0.90"/>
+      <line x1="33" y1="5" x2="35" y2="3" stroke="#f8a040" strokeWidth="0.7" strokeLinecap="round" opacity="0.6"/>
+      <line x1="33" y1="7" x2="36" y2="7" stroke="#f8a040" strokeWidth="0.7" strokeLinecap="round" opacity="0.5"/>
+    </svg>
+  );
+}
+
+function FlintMarkC() {
+  return (
+    <svg className="flint-mark" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      {/* Shield / badge shape */}
+      <path d="M7 7 L33 7 L33 27 L20 37 L7 27 Z"
+        fill="#b85818" stroke="#e07830" strokeWidth="1.2" strokeLinejoin="round"/>
+      {/* Inner lighter area */}
+      <path d="M10 10 L30 10 L30 25 L20 33 L10 25 Z" fill="#c86828" stroke="none"/>
+      {/* F letterform */}
+      <path d="M14 14 L26 14" stroke="#fde8cc" strokeWidth="2.5" strokeLinecap="round"/>
+      <path d="M14 14 L14 26" stroke="#fde8cc" strokeWidth="2.5" strokeLinecap="round"/>
+      <path d="M14 20 L23 20" stroke="#fde8cc" strokeWidth="2.5" strokeLinecap="round"/>
+      {/* Spark top-right corner */}
+      <path d="M30 5 L32 3 L30 4 L28 3 Z" fill="#f09030"/>
+      <line x1="32" y1="3" x2="34" y2="1" stroke="#f09030" strokeWidth="0.8" strokeLinecap="round" opacity="0.7"/>
+      <line x1="33" y1="5" x2="35" y2="5" stroke="#f09030" strokeWidth="0.8" strokeLinecap="round" opacity="0.5"/>
+    </svg>
+  );
+}
+
+/* Active icon — change to FlintMarkB or FlintMarkC to try the others */
+function FlintMark() {
+  // Options: FlintMarkA (arrowhead), FlintMarkB (crystal), FlintMarkC (shield badge)
+  return <FlintMarkA />;
+}
+
+// Keep unused variants accessible — swap above to try them
+export { FlintMarkB, FlintMarkC };
 
 function ShellTab({
   active,
@@ -1696,36 +1723,71 @@ function CanyonLandscape() {
   return (
     <div className="stage-landscape" aria-hidden="true">
       <svg
-        viewBox="0 0 1440 220"
+        viewBox="0 0 1440 300"
         preserveAspectRatio="xMidYMax slice"
         xmlns="http://www.w3.org/2000/svg"
       >
-        {/* Far layer */}
+        {/* Sky glow — warm orange haze near horizon */}
+        <defs>
+          <linearGradient id="horizonGlow" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#c05810" stopOpacity="0"/>
+            <stop offset="100%" stopColor="#7a3010" stopOpacity="0.5"/>
+          </linearGradient>
+        </defs>
+        <rect x="0" y="0" width="1440" height="300" fill="url(#horizonGlow)"/>
+
+        {/* Layer 1 — distant canyon walls, very far back */}
         <path
-          d="M0 220 L0 130 Q60 118 120 124 Q180 130 240 108
-             Q300 86 380 98 Q460 110 540 82 Q620 54 700 72
-             Q780 90 860 68 Q940 46 1020 64 Q1100 82 1180 62
-             Q1260 42 1340 58 Q1400 68 1440 62 L1440 220 Z"
-          fill="#130c07"
+          d="M0 300 L0 180 Q40 165 90 170 Q140 175 190 155
+             Q240 135 300 148 Q360 160 420 138 Q480 116 550 130
+             Q620 144 700 118 Q770 92 850 108 Q920 124 1000 100
+             Q1070 76 1150 92 Q1220 108 1300 86 Q1380 64 1440 72
+             L1440 300 Z"
+          fill="#3a1a08"
+          opacity="0.9"
         />
-        {/* Mid layer — mesa shape on right */}
+
+        {/* Layer 2 — mid canyon, left butte */}
         <path
-          d="M0 220 L0 155 Q80 143 160 150 Q240 157 320 136
-             Q400 115 480 130 Q560 145 640 122 Q720 99 800 116
-             Q860 128 900 118 L900 98 Q920 90 940 92 L940 112
-             Q980 108 1020 118 Q1080 130 1140 112 Q1200 94 1260 108
-             Q1340 124 1400 112 Q1430 106 1440 108 L1440 220 Z"
-          fill="#1c1009"
+          d="M0 300 L0 210 Q50 198 110 205 Q170 212 230 190
+             Q270 174 310 188 L310 162 Q322 152 334 155 Q346 158 358 152
+             L358 165 Q400 155 450 170 Q500 184 560 165
+             Q620 146 680 160 Q740 174 810 155
+             Q880 136 950 152 Q1020 168 1090 148
+             L1090 126 Q1104 116 1118 120 L1118 148
+             Q1170 144 1230 158 Q1300 174 1360 156
+             Q1410 142 1440 145 L1440 300 Z"
+          fill="#521f08"
+          opacity="0.95"
         />
-        {/* Near layer — foreground rocks */}
+
+        {/* Layer 3 — near foreground rocks with plateau tops */}
         <path
-          d="M0 220 L0 178 Q60 168 120 174 Q200 182 280 162
-             Q340 146 400 158 L400 140 Q418 132 436 136 L436 158
-             Q500 158 560 168 Q620 178 680 158 Q740 138 800 152
-             Q860 166 920 150 Q980 134 1040 148 Q1100 162 1140 148
-             L1140 130 Q1158 122 1176 126 L1176 148
-             Q1240 148 1300 160 Q1380 174 1440 162 L1440 220 Z"
-          fill="#271410"
+          d="M0 300 L0 240 Q60 228 130 235 Q200 242 260 222
+             Q300 208 340 218 L340 200 Q354 190 368 194 L368 220
+             Q430 216 500 228 Q560 240 610 222
+             Q650 208 690 218 L690 202 Q702 194 714 198 L714 222
+             Q780 218 850 232 Q920 246 970 226
+             Q1010 210 1050 224 L1050 204
+             Q1066 194 1082 198 Q1098 202 1114 196
+             L1114 218 Q1170 210 1230 224
+             Q1300 238 1360 220 Q1410 206 1440 210
+             L1440 300 Z"
+          fill="#6b2a0c"
+        />
+
+        {/* Layer 4 — closest foreground, darkest */}
+        <path
+          d="M0 300 L0 268 Q80 256 160 264 Q240 272 320 256
+             Q380 244 440 256 L440 240 Q454 230 468 235 L468 258
+             Q540 252 620 264 Q700 276 760 260
+             Q800 248 840 260 L840 244
+             Q856 234 872 238 L872 262
+             Q940 256 1020 268 Q1100 280 1160 264
+             Q1220 248 1280 264 L1280 248
+             Q1298 238 1316 242 L1316 266
+             Q1380 260 1440 264 L1440 300 Z"
+          fill="#7a3010"
         />
       </svg>
     </div>
