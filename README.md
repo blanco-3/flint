@@ -169,7 +169,7 @@ Reference files:
 - `docs/operator-runbook.md`
 - `docs/request-state-diagram.md`
 
-## Flint Console
+## Flint Guard Console
 
 Build the operator shell:
 
@@ -185,8 +185,14 @@ npm --prefix flint-console run dev
 
 Modes:
 
-- **Seeded Judge Mode** — uses tracked devnet and benchmark artifacts
-- **Live Relay Mode** — points at the local relay on `http://127.0.0.1:8787`
+- **Seeded Demo Mode** — deterministic judge flow with seeded route, panic-order, and incident scenarios plus simulated execution/cancel actions
+- **Live API Mode** — uses live Jupiter quote/swap, Jupiter Trigger order queries, DexScreener pool metadata, and an injected wallet for real signing
+
+Notes:
+
+- the console now focuses on the safety-first Flint Guard surface
+- the relay/API alpha, SDK, and operator assets remain separate backend/integration surfaces in this repo
+- incident bundles can be exported from the console for judge/operator review
 
 ## Economic Model
 

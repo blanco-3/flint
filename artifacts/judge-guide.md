@@ -17,9 +17,9 @@ Flint is a protected execution backend on Solana: registered solvers compete for
 2. Show the happy path devnet smoke tx
 3. Show the timeout recovery devnet smoke tx
 4. Show the benchmark summary
-5. Open Flint Console in Seeded Judge Mode
-6. Switch to Live Relay Mode and create a quote request
-7. Show the relay/API alpha and TypeScript SDK as the productization direction
+5. Open Flint Guard Console in Seeded Demo Mode and run one deterministic incident scenario end-to-end
+6. Switch to Live API Mode and show the real Jupiter + wallet integration path
+7. Show the relay/API alpha and TypeScript SDK as the backend/integration direction
 
 ## Why this matters
 
