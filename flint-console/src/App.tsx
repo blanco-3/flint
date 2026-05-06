@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useMemo, useState } from "react";
+import { startTransition, useEffect, useEffectEvent, useMemo, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 
 import {
@@ -50,7 +50,7 @@ import {
 } from "./lib/guard-market-board";
 import { fetchPoolSnapshots } from "./lib/guard-market-data";
 import { buildDecisionReport, buildPanicActionPlan } from "./lib/guard-report";
-import { buildWatchSnapshot, buildWatchlistMatches } from "./lib/guard-watch";
+import { buildWatchSnapshot } from "./lib/guard-watch";
 import {
   evaluateQuoteRisk,
   evaluateTriggerOrders,
@@ -87,7 +87,6 @@ import {
   type SafetyFeedItem,
   type SafetyFeedSnapshot,
   type TriggerOrder,
-  type WatchlistState,
 } from "./lib/guard-types";
 import type { Dispatch, SetStateAction } from "react";
 import { TOKEN_OPTIONS, tokenByMint, tokenChoices, type TokenOption } from "./lib/token-options";
@@ -104,10 +103,11 @@ const STORAGE_KEYS = {
   actionProfile: "flint-guard:action-profile",
   activity: "flint-guard:activity",
   locale: "flint-guard:locale",
-  watchlist: "flint-guard:watchlist",
 };
 
-const STORAGE_VERSION = "live-product-v1";
+const STORAGE_VERSION = "live-product-v2";
+const QUOTE_REFRESH_MS = 15000;
+const WATCH_REFRESH_MS = 20000;
 
 const DEFAULT_FORM: QuoteFormState = {
   inputMint: TOKEN_OPTIONS[0].mint,
@@ -133,13 +133,6 @@ const MARKET_MONITORS: Array<{
   { input: TOKEN_OPTIONS[5], output: TOKEN_OPTIONS[0], amount: "0.5" },
   { input: TOKEN_OPTIONS[5], output: TOKEN_OPTIONS[1], amount: "0.5" },
 ];
-
-const POPULAR_PAIR_PRESETS = [
-  { label: "SOL -> USDC", inputMint: TOKEN_OPTIONS[0].mint, outputMint: TOKEN_OPTIONS[1].mint },
-  { label: "SOL -> JUP", inputMint: TOKEN_OPTIONS[0].mint, outputMint: TOKEN_OPTIONS[2].mint },
-  { label: "SOL -> BONK", inputMint: TOKEN_OPTIONS[0].mint, outputMint: TOKEN_OPTIONS[3].mint },
-  { label: "JUP -> USDC", inputMint: TOKEN_OPTIONS[2].mint, outputMint: TOKEN_OPTIONS[1].mint },
-] as const;
 
 export default function App() {
   const [activePanel, setActivePanel] = useState<
@@ -170,10 +163,6 @@ export default function App() {
     STORAGE_KEYS.signals,
     DEFAULT_SIGNAL_INPUTS
   );
-  const [watchlist, setWatchlist] = usePersistentState<WatchlistState>(
-    STORAGE_KEYS.watchlist,
-    DEFAULT_SIGNAL_INPUTS
-  );
   const [activityLog, setActivityLog] = usePersistentState<ActivityLogEntry[]>(
     STORAGE_KEYS.activity,
     []
@@ -200,11 +189,6 @@ export default function App() {
     token: "",
     venue: "",
   });
-  const [watchDrafts, setWatchDrafts] = useState({
-    tokens: "",
-    pairs: "",
-    venues: "",
-  });
   const [marketBoard, setMarketBoard] = useState<MarketRiskItem[]>([]);
   const [marketTokens, setMarketTokens] = useState<MarketTokenHealth[]>([]);
   const [marketThemes, setMarketThemes] = useState<MarketRiskTheme[]>([]);
@@ -212,6 +196,12 @@ export default function App() {
   const [marketBoardError, setMarketBoardError] = useState<string | null>(null);
   const [isLoadingMarketBoard, setIsLoadingMarketBoard] = useState(false);
   const [marketRefreshedAt, setMarketRefreshedAt] = useState<string | null>(null);
+  const [quoteExpiresAt, setQuoteExpiresAt] = useState<number | null>(null);
+  const [watchExpiresAt, setWatchExpiresAt] = useState<number | null>(null);
+  const [clockNow, setClockNow] = useState(() => Date.now());
+  const [isBackgroundRefreshingQuote, setIsBackgroundRefreshingQuote] = useState(false);
+  const [tokenSelectorSide, setTokenSelectorSide] = useState<"input" | "output" | null>(null);
+  const [tokenSearch, setTokenSearch] = useState("");
   const copy = useMemo(() => localeCopy(locale), [locale]);
 
   const basePolicy = useMemo(() => policyCopy(POLICY_PRESETS[policyPreset]), [policyPreset]);
@@ -241,6 +231,31 @@ export default function App() {
     [comparison]
   );
 
+  const selectedInputToken = useMemo(() => tokenByMint(form.inputMint), [form.inputMint]);
+  const selectedOutputToken = useMemo(() => tokenByMint(form.outputMint), [form.outputMint]);
+
+  const filteredTokenChoices = useMemo(() => {
+    const query = tokenSearch.trim().toLowerCase();
+    if (!query) return tokenChoices();
+    return tokenChoices().filter((token) => {
+      return (
+        token.symbol.toLowerCase().includes(query) ||
+        token.name.toLowerCase().includes(query) ||
+        token.mint.toLowerCase().includes(query)
+      );
+    });
+  }, [tokenSearch]);
+
+  const quoteCountdownSeconds = useMemo(() => {
+    if (!quoteExpiresAt) return null;
+    return Math.max(0, Math.ceil((quoteExpiresAt - clockNow) / 1000));
+  }, [quoteExpiresAt, clockNow]);
+
+  const watchCountdownSeconds = useMemo(() => {
+    if (!watchExpiresAt) return null;
+    return Math.max(0, Math.ceil((watchExpiresAt - clockNow) / 1000));
+  }, [watchExpiresAt, clockNow]);
+
   const incidentLog = useMemo(
     () =>
       activityLog.filter((entry) => entry.kind === "incident" || entry.severity !== "info"),
@@ -250,6 +265,7 @@ export default function App() {
   useEffect(() => {
     setComparison(null);
     setComparisonError(null);
+    setQuoteExpiresAt(null);
   }, [form.inputMint, form.outputMint, form.amount, form.slippageBps]);
 
   useEffect(() => {
@@ -257,7 +273,7 @@ export default function App() {
     if (injected?.publicKey) {
       setWalletAddress(injected.publicKey.toBase58());
     }
-  }, [setActionProfileId, setDataMode, setPolicyPreset, setSignals, setWatchlist]);
+  }, [setActionProfileId, setDataMode, setPolicyPreset, setSignals]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -266,11 +282,10 @@ export default function App() {
     setDataMode("live");
     setActivePanel("watch");
     setSignals(DEFAULT_SIGNAL_INPUTS);
-    setWatchlist(DEFAULT_SIGNAL_INPUTS);
     setPolicyPreset("retail");
     setActionProfileId(defaultActionProfileForPreset("retail"));
     window.localStorage.setItem(STORAGE_KEYS.version, STORAGE_VERSION);
-  }, [setActionProfileId, setDataMode, setPolicyPreset, setSignals, setWatchlist]);
+  }, [setActionProfileId, setDataMode, setPolicyPreset, setSignals]);
 
   const activeScenario = useMemo(() => demoScenarioById(demoScenario), [demoScenario]);
 
@@ -385,18 +400,24 @@ export default function App() {
     [currentWatchItems]
   );
 
-  const watchlistMatches = useMemo(
-    () => buildWatchlistMatches(watchlist, currentWatchItems),
-    [watchlist, currentWatchItems]
-  );
-
   const refreshWatchSurface = useEffectEvent(() => {
-    void handleRefreshMarketBoard();
-    void handleRefreshSafetyFeed();
+    void handleRefreshMarketBoard(true);
+    void handleRefreshSafetyFeed(true);
   });
 
   const refreshProtectSurface = useEffectEvent(() => {
     void handleLoadOrders();
+  });
+
+  const refreshQuoteSurface = useEffectEvent(() => {
+    setIsBackgroundRefreshingQuote(true);
+    void evaluateLiveRoutes({ background: true })
+      .catch(() => {
+        setQuoteExpiresAt(Date.now() + QUOTE_REFRESH_MS);
+      })
+      .finally(() => {
+        setIsBackgroundRefreshingQuote(false);
+      });
   });
 
   useEffect(() => {
@@ -407,7 +428,7 @@ export default function App() {
 
     const timer = window.setInterval(() => {
       refreshWatchSurface();
-    }, 30_000);
+    }, WATCH_REFRESH_MS);
 
     return () => window.clearInterval(timer);
   }, [activePanel, dataMode, marketRefreshedAt, feedSnapshot]);
@@ -421,6 +442,37 @@ export default function App() {
       setSelectedFeedItem(feedSnapshot.items[0]);
     }
   }, [feedSnapshot, selectedFeedItem]);
+
+  useEffect(() => {
+    if (!quoteExpiresAt && !watchExpiresAt) return;
+    const timer = window.setInterval(() => {
+      setClockNow(Date.now());
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [quoteExpiresAt, watchExpiresAt]);
+
+  useEffect(() => {
+    if (
+      activePanel !== "trade" ||
+      dataMode !== "live" ||
+      !comparison ||
+      !quoteExpiresAt ||
+      clockNow < quoteExpiresAt ||
+      isEvaluating ||
+      isBackgroundRefreshingQuote
+    ) {
+      return;
+    }
+    refreshQuoteSurface();
+  }, [
+    activePanel,
+    clockNow,
+    comparison,
+    dataMode,
+    isBackgroundRefreshingQuote,
+    isEvaluating,
+    quoteExpiresAt,
+  ]);
 
   useEffect(() => {
     if (
@@ -488,6 +540,107 @@ export default function App() {
     });
   }
 
+  async function evaluateLiveRoutes(options?: { background?: boolean }) {
+    const background = options?.background ?? false;
+    const amount = rawAmountFromForm(form.amount, form.inputMint);
+    const baseQuote = await fetchQuote({
+      inputMint: form.inputMint,
+      outputMint: form.outputMint,
+      amount,
+      slippageBps: form.slippageBps,
+    });
+
+    const basePools = await fetchPoolSnapshots(
+      baseQuote.routePlan.map((hop) => hop.swapInfo.ammKey)
+    );
+    const baseAssessment = evaluateQuoteRisk(baseQuote, basePools, policy);
+    const comparisonState: QuoteComparison = {
+      baseQuote,
+      baseAssessment,
+      safeQuote: null,
+      safeAssessment: null,
+      blockedVenuesUsed: [],
+      safeMode,
+      executionTarget: safeMode && baseAssessment.status === "blocked" ? "none" : "base",
+    };
+
+    const safeAlternativeNeeded =
+      baseAssessment.status === "blocked" || (safeMode && policy.maxHops === 1);
+    const blockedVenues = dedupeStrings(
+      baseAssessment.blockedVenues
+        .concat(baseQuote.routePlan.map((hop) => hop.swapInfo.label))
+        .concat(policy.denylistVenues)
+        .concat(policy.panicVenues)
+    );
+
+    if (safeAlternativeNeeded) {
+      const attempts = dedupeQuoteAttempts([
+        {
+          excludeDexes: blockedVenues.length ? blockedVenues : undefined,
+          onlyDirectRoutes: policy.maxHops === 1,
+        },
+        {
+          excludeDexes: blockedVenues.length ? blockedVenues : undefined,
+          onlyDirectRoutes: true,
+        },
+      ]);
+
+      for (const attempt of attempts) {
+        try {
+          const safeQuote = await fetchQuote({
+            inputMint: form.inputMint,
+            outputMint: form.outputMint,
+            amount,
+            slippageBps: form.slippageBps,
+            excludeDexes: attempt.excludeDexes,
+            onlyDirectRoutes: attempt.onlyDirectRoutes,
+          });
+          const safePools = await fetchPoolSnapshots(
+            safeQuote.routePlan.map((hop) => hop.swapInfo.ammKey)
+          );
+          const safeAssessment = evaluateQuoteRisk(safeQuote, safePools, policy);
+          comparisonState.safeQuote = safeQuote;
+          comparisonState.safeAssessment = safeAssessment;
+          comparisonState.blockedVenuesUsed = blockedVenues;
+          if (safeAssessment.status !== "blocked") {
+            comparisonState.executionTarget = safeMode ? "safe" : "base";
+            break;
+          }
+        } catch {
+          continue;
+        }
+      }
+    } else if (baseAssessment.status !== "blocked") {
+      comparisonState.executionTarget = "base";
+    }
+
+    if (safeMode && comparisonState.baseAssessment.status === "blocked") {
+      if (comparisonState.safeAssessment && comparisonState.safeAssessment.status !== "blocked") {
+        comparisonState.executionTarget = "safe";
+      } else {
+        comparisonState.executionTarget = "none";
+      }
+    }
+
+    startTransition(() => {
+      setComparison(comparisonState);
+      setQuoteExpiresAt(Date.now() + QUOTE_REFRESH_MS);
+    });
+
+    if (!background) {
+      appendLog(setActivityLog, {
+        title: "Route comparison updated",
+        detail: describeComparison(comparisonState),
+        severity:
+          comparisonState.baseAssessment.status === "blocked" ? "warning" : "info",
+        kind:
+          comparisonState.baseAssessment.status === "blocked" ? "incident" : "activity",
+      });
+    }
+
+    return comparisonState;
+  }
+
   async function handleEvaluateRoutes(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setComparison(null);
@@ -508,98 +661,9 @@ export default function App() {
         });
         return;
       }
-
-      const amount = rawAmountFromForm(form.amount, form.inputMint);
-      const baseQuote = await fetchQuote({
-        inputMint: form.inputMint,
-        outputMint: form.outputMint,
-        amount,
-        slippageBps: form.slippageBps,
-      });
-
-      const basePools = await fetchPoolSnapshots(
-        baseQuote.routePlan.map((hop) => hop.swapInfo.ammKey)
-      );
-      const baseAssessment = evaluateQuoteRisk(baseQuote, basePools, policy);
-      const comparisonState: QuoteComparison = {
-        baseQuote: baseQuote,
-        baseAssessment: baseAssessment,
-        safeQuote: null,
-        safeAssessment: null,
-        blockedVenuesUsed: [],
-        safeMode: safeMode,
-        executionTarget: safeMode && baseAssessment.status === "blocked" ? "none" : "base",
-      };
-
-      const safeAlternativeNeeded =
-        baseAssessment.status === "blocked" || (safeMode && policy.maxHops === 1);
-      const blockedVenues = dedupeStrings(
-        baseAssessment.blockedVenues
-          .concat(baseQuote.routePlan.map((hop) => hop.swapInfo.label))
-          .concat(policy.denylistVenues)
-          .concat(policy.panicVenues)
-      );
-
-      if (safeAlternativeNeeded) {
-        const attempts = dedupeQuoteAttempts([
-          {
-            excludeDexes: blockedVenues.length ? blockedVenues : undefined,
-            onlyDirectRoutes: policy.maxHops === 1,
-          },
-          {
-            excludeDexes: blockedVenues.length ? blockedVenues : undefined,
-            onlyDirectRoutes: true,
-          },
-        ]);
-
-        for (const attempt of attempts) {
-          try {
-            const safeQuote = await fetchQuote({
-              inputMint: form.inputMint,
-              outputMint: form.outputMint,
-              amount,
-              slippageBps: form.slippageBps,
-              excludeDexes: attempt.excludeDexes,
-              onlyDirectRoutes: attempt.onlyDirectRoutes,
-            });
-            const safePools = await fetchPoolSnapshots(
-              safeQuote.routePlan.map((hop) => hop.swapInfo.ammKey)
-            );
-            const safeAssessment = evaluateQuoteRisk(safeQuote, safePools, policy);
-            comparisonState.safeQuote = safeQuote;
-            comparisonState.safeAssessment = safeAssessment;
-            comparisonState.blockedVenuesUsed = blockedVenues;
-            if (safeAssessment.status !== "blocked") {
-              comparisonState.executionTarget = safeMode ? "safe" : "base";
-              break;
-            }
-          } catch {
-            continue;
-          }
-        }
-      } else if (baseAssessment.status !== "blocked") {
-        comparisonState.executionTarget = "base";
-      }
-
-      if (safeMode && comparisonState.baseAssessment.status === "blocked") {
-        if (comparisonState.safeAssessment && comparisonState.safeAssessment.status !== "blocked") {
-          comparisonState.executionTarget = "safe";
-        } else {
-          comparisonState.executionTarget = "none";
-        }
-      }
-
-      setComparison(comparisonState);
-      appendLog(setActivityLog, {
-        title: "Route comparison updated",
-        detail: describeComparison(comparisonState),
-        severity:
-          comparisonState.baseAssessment.status === "blocked" ? "warning" : "info",
-        kind:
-          comparisonState.baseAssessment.status === "blocked" ? "incident" : "activity",
-      });
+      await evaluateLiveRoutes();
     } catch (error) {
-      const message = error instanceof Error ? error.message : "route_fetch_failed";
+      const message = describeNetworkError(error, "quote");
       setComparisonError(message);
       appendLog(setActivityLog, {
         title: "Route evaluation failed",
@@ -607,6 +671,7 @@ export default function App() {
         severity: "critical",
         kind: "incident",
       });
+      setQuoteExpiresAt(null);
     } finally {
       setIsEvaluating(false);
     }
@@ -699,7 +764,7 @@ export default function App() {
         kind: "activity",
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "order_fetch_failed";
+      const message = describeNetworkError(error, "orders");
       setOrderError(message);
       appendLog(setActivityLog, {
         title: "Open trigger order fetch failed",
@@ -759,38 +824,55 @@ export default function App() {
     }
   }
 
-  async function handleRefreshSafetyFeed() {
+  async function handleRefreshSafetyFeed(background = false) {
     setIsLoadingFeed(true);
-    setFeedError(null);
+    if (!background) {
+      setFeedError(null);
+    }
     try {
       const snapshot = await fetchSafetyFeed();
       if (!isSafetyFeedSnapshot(snapshot)) {
         throw new Error("invalid_safety_feed_snapshot");
       }
-      setFeedSnapshot(snapshot);
-      appendLog(setActivityLog, {
-        title: "Safety feed refreshed",
-        detail: `${snapshot.itemCount} incident item(s) loaded from relay.`,
-        severity: "info",
-        kind: "activity",
+      startTransition(() => {
+        setFeedError(null);
+        setFeedSnapshot(snapshot);
+        setWatchExpiresAt(Date.now() + WATCH_REFRESH_MS);
       });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "safety_feed_refresh_failed";
-      setFeedError(message);
-      appendLog(setActivityLog, {
-        title: "Safety feed refresh failed",
-        detail: message,
-        severity: "warning",
-        kind: "incident",
+      if (!background) {
+        appendLog(setActivityLog, {
+          title: "Safety feed refreshed",
+          detail: `${snapshot.itemCount} incident item(s) loaded from relay.`,
+          severity: "info",
+          kind: "activity",
+        });
+      }
+    } catch {
+      const fallback = buildSafetyFeedSnapshot([currentFeedItem]);
+      startTransition(() => {
+        if (!feedSnapshot?.items.length) {
+          setFeedSnapshot(fallback);
+        }
+        setWatchExpiresAt(Date.now() + WATCH_REFRESH_MS);
       });
+      if (!background) {
+        appendLog(setActivityLog, {
+          title: "Safety feed refresh degraded",
+          detail: "Relay was unavailable. Flint kept the local incident snapshot active.",
+          severity: "warning",
+          kind: "incident",
+        });
+      }
     } finally {
       setIsLoadingFeed(false);
     }
   }
 
-  async function handleRefreshMarketBoard() {
+  async function handleRefreshMarketBoard(background = false) {
     setIsLoadingMarketBoard(true);
-    setMarketBoardError(null);
+    if (!background) {
+      setMarketBoardError(null);
+    }
     try {
       const results = await Promise.allSettled(
         MARKET_MONITORS.map(async ({ input, output, amount }) => {
@@ -840,26 +922,36 @@ export default function App() {
       }
 
       const sorted = sortMarketRiskItems(rows);
-      setMarketBoard(sorted);
-      setMarketTokens(summarizeTokenHealth(sorted));
-      setMarketThemes(summarizeRiskThemes(sorted));
-      setMarketVenues(summarizeRiskVenues(sorted));
-      setMarketRefreshedAt(new Date().toISOString());
-      appendLog(setActivityLog, {
-        title: "Live market board refreshed",
-        detail: `${sorted.length} monitored route(s) rescored.`,
-        severity: "info",
-        kind: "activity",
+      startTransition(() => {
+        setMarketBoardError(null);
+        setMarketBoard(sorted);
+        setMarketTokens(summarizeTokenHealth(sorted));
+        setMarketThemes(summarizeRiskThemes(sorted));
+        setMarketVenues(summarizeRiskVenues(sorted));
+        setMarketRefreshedAt(new Date().toISOString());
+        setWatchExpiresAt(Date.now() + WATCH_REFRESH_MS);
       });
+      if (!background) {
+        appendLog(setActivityLog, {
+          title: "Live market board refreshed",
+          detail: `${sorted.length} monitored route(s) rescored.`,
+          severity: "info",
+          kind: "activity",
+        });
+      }
     } catch (error) {
-      const message = error instanceof Error ? error.message : "market_board_refresh_failed";
-      setMarketBoardError(message);
-      appendLog(setActivityLog, {
-        title: "Market board refresh failed",
-        detail: message,
-        severity: "warning",
-        kind: "incident",
-      });
+      if (!background && !marketBoard.length) {
+        setMarketBoardError(describeNetworkError(error, "market"));
+      }
+      setWatchExpiresAt(Date.now() + WATCH_REFRESH_MS);
+      if (!background) {
+        appendLog(setActivityLog, {
+          title: "Market board refresh degraded",
+          detail: "Live quotes or pool metadata were unavailable. Flint kept the last board state.",
+          severity: "warning",
+          kind: "incident",
+        });
+      }
     } finally {
       setIsLoadingMarketBoard(false);
     }
@@ -974,37 +1066,14 @@ export default function App() {
     }));
   }
 
-  function addWatchlistItem(kind: keyof WatchlistState) {
-    const raw = watchDrafts[kind].trim();
-    if (!raw) return;
-    const normalized =
-      kind === "tokens"
-        ? canonicalMint(raw)
-        : kind === "venues"
-          ? canonicalVenue(raw)
-          : normalizeWatchPair(raw);
-    setWatchlist((current) => ({
-      ...current,
-      [kind]: dedupeStrings(current[kind].concat(normalized)),
-    }));
-    setWatchDrafts((current) => ({ ...current, [kind]: "" }));
-  }
-
-  function removeWatchlistItem(kind: keyof WatchlistState, value: string) {
-    setWatchlist((current) => ({
-      ...current,
-      [kind]: current[kind].filter((item) => item !== value),
-    }));
-  }
-
-  function applyPairPreset(inputMint: string, outputMint: string) {
+  function selectToken(side: "input" | "output", mint: string) {
     setForm((current) => ({
       ...current,
-      inputMint,
-      outputMint,
+      inputMint: side === "input" ? mint : current.inputMint,
+      outputMint: side === "output" ? mint : current.outputMint,
     }));
-    setComparison(null);
-    setComparisonError(null);
+    setTokenSelectorSide(null);
+    setTokenSearch("");
   }
 
   function flipPair() {
@@ -1018,6 +1087,7 @@ export default function App() {
   function clearTransientState() {
     setComparison(null);
     setComparisonError(null);
+    setQuoteExpiresAt(null);
     setOrders([]);
     setOrdersLoaded(false);
     setSelectedOrderKeys([]);
@@ -1165,7 +1235,6 @@ export default function App() {
         {comparisonError ? <Banner tone="critical">{comparisonError}</Banner> : null}
         {orderError ? <Banner tone="warning">{orderError}</Banner> : null}
         {feedError ? <Banner tone="warning">{feedError}</Banner> : null}
-        {marketBoardError ? <Banner tone="warning">{marketBoardError}</Banner> : null}
 
         <section
           className={`trade-shell${activePanel !== "trade" || (activePanel === "trade" && comparison) ? " wide-panel" : ""}`}
@@ -1183,23 +1252,6 @@ export default function App() {
           {activePanel === "trade" ? (
             <div className="trade-workbench">
               <form className="trade-panel" onSubmit={handleEvaluateRoutes}>
-                <div className="pair-presets">
-                  {POPULAR_PAIR_PRESETS.map((preset) => (
-                    <button
-                      key={preset.label}
-                      type="button"
-                      className={`chip-button ${
-                        form.inputMint === preset.inputMint && form.outputMint === preset.outputMint
-                          ? "active"
-                          : ""
-                      }`}
-                      onClick={() => applyPairPreset(preset.inputMint, preset.outputMint)}
-                    >
-                      {preset.label}
-                    </button>
-                  ))}
-                </div>
-
               {/* ── Swap group: sell + orb + buy connected ── */}
               <div className="swap-group">
 
@@ -1208,18 +1260,6 @@ export default function App() {
                 <div className="swap-box-top">
                   <span className="swap-box-label">{copy.trade.sell}</span>
                   <span className="swap-balance">{copy.trade.balance}: —</span>
-                </div>
-                <div className="quick-picks">
-                  {[TOKEN_OPTIONS[0], TOKEN_OPTIONS[1], TOKEN_OPTIONS[2], TOKEN_OPTIONS[3]].map((token) => (
-                    <button
-                      key={`sell-${token.mint}`}
-                      type="button"
-                      className={`token-chip${form.inputMint === token.mint ? " active" : ""}`}
-                      onClick={() => setForm((current) => ({ ...current, inputMint: token.mint }))}
-                    >
-                      {token.symbol}
-                    </button>
-                  ))}
                 </div>
                 <div className="swap-box-main">
                   <input
@@ -1230,17 +1270,10 @@ export default function App() {
                       setForm((current) => ({ ...current, amount: event.target.value }))
                     }
                   />
-                  <select
-                    className="token-pill"
-                    value={form.inputMint}
-                    onChange={(event) =>
-                      setForm((current) => ({ ...current, inputMint: event.target.value }))
-                    }
-                  >
-                    {tokenChoices().map((token) => (
-                      <option key={token.mint} value={token.mint}>{token.symbol}</option>
-                    ))}
-                  </select>
+                  <TokenSelectButton
+                    token={selectedInputToken}
+                    onClick={() => setTokenSelectorSide("input")}
+                  />
                 </div>
               </div>
 
@@ -1260,18 +1293,6 @@ export default function App() {
                   <span className="swap-box-label">{copy.trade.buy}</span>
                   <span className="swap-balance">{copy.trade.balance}: —</span>
                 </div>
-                <div className="quick-picks">
-                  {[TOKEN_OPTIONS[1], TOKEN_OPTIONS[2], TOKEN_OPTIONS[3], TOKEN_OPTIONS[0]].map((token) => (
-                    <button
-                      key={`buy-${token.mint}`}
-                      type="button"
-                      className={`token-chip${form.outputMint === token.mint ? " active" : ""}`}
-                      onClick={() => setForm((current) => ({ ...current, outputMint: token.mint }))}
-                    >
-                      {token.symbol}
-                    </button>
-                  ))}
-                </div>
                 <div className="swap-box-main">
                   <div className={`swap-readout${comparison ? "" : " empty"}`}>
                     {comparison
@@ -1283,17 +1304,10 @@ export default function App() {
                         )
                       : "0"}
                   </div>
-                  <select
-                    className="token-pill"
-                    value={form.outputMint}
-                    onChange={(event) =>
-                      setForm((current) => ({ ...current, outputMint: event.target.value }))
-                    }
-                  >
-                    {tokenChoices().map((token) => (
-                      <option key={token.mint} value={token.mint}>{token.symbol}</option>
-                    ))}
-                  </select>
+                  <TokenSelectButton
+                    token={selectedOutputToken}
+                    onClick={() => setTokenSelectorSide("output")}
+                  />
                 </div>
                 {comparison ? (
                   <div className="swap-rate-row">
@@ -1307,17 +1321,26 @@ export default function App() {
               {/* ── Slippage row ── */}
               <div className="slippage-row">
                 <span>{copy.trade.maxSlippage}</span>
-                <select
-                  className="slippage-select"
-                  value={form.slippageBps}
-                  onChange={(event) =>
-                    setForm((current) => ({ ...current, slippageBps: Number(event.target.value) }))
-                  }
-                >
-                  {[30, 50, 75, 100, 150].map((v) => (
-                    <option key={v} value={v}>{v / 100}%</option>
-                  ))}
-                </select>
+                <div className="trade-meta-actions">
+                  <QuoteCountdownPill
+                    countdown={quoteCountdownSeconds}
+                    isRefreshing={isEvaluating || isBackgroundRefreshingQuote}
+                    label={copy.trade.quoteRefresh}
+                    refreshingLabel={copy.trade.quoteRefreshing}
+                    readyLabel={copy.trade.quoteIdle}
+                  />
+                  <select
+                    className="slippage-select"
+                    value={form.slippageBps}
+                    onChange={(event) =>
+                      setForm((current) => ({ ...current, slippageBps: Number(event.target.value) }))
+                    }
+                  >
+                    {[30, 50, 75, 100, 150].map((v) => (
+                      <option key={v} value={v}>{v / 100}%</option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               {/* ── Receive row (after quote) ── */}
@@ -1639,11 +1662,18 @@ export default function App() {
                   <p>{copy.watch.subtitle}</p>
                 </div>
                 <div className="nav-actions compact-actions">
+                  <QuoteCountdownPill
+                    countdown={watchCountdownSeconds}
+                    isRefreshing={isLoadingFeed || isLoadingMarketBoard}
+                    label={copy.watch.refreshCycle}
+                    refreshingLabel={copy.watch.refreshing}
+                    readyLabel={copy.watch.refreshReady}
+                  />
                   <button className="ghost-button" onClick={() => void handleRefreshMarketBoard()}>
-                    {isLoadingMarketBoard ? copy.watch.refreshing : copy.watch.snapshot}
+                    {copy.watch.snapshot}
                   </button>
                   <button className="ghost-button" onClick={() => void handleRefreshSafetyFeed()}>
-                    {isLoadingFeed ? copy.watch.refreshing : copy.watch.refreshFeed}
+                    {copy.watch.refreshFeed}
                   </button>
                   <button
                     className="primary-button"
@@ -1661,6 +1691,28 @@ export default function App() {
                 <MetricCard label={copy.watch.degradedIncidents} value={String(watchSnapshot.degradedIncidentCount)} />
                 <MetricCard label={copy.watch.blockedRoutes} value={String(watchSnapshot.blockedRouteCount)} />
               </section>
+
+              {marketThemes.length ? (
+                <section className="info-card watch-reason-strip">
+                  <span className="panel-kicker">{copy.watch.topDrivers}</span>
+                  <div className="chip-wrap dense-chip-wrap">
+                    {marketThemes.slice(0, 4).map((theme) => (
+                      <span
+                        key={theme.title}
+                        className={`reason-chip ${
+                          theme.status === "blocked"
+                            ? "blocking"
+                            : theme.status === "warn"
+                              ? "warning"
+                              : "muted"
+                        }`}
+                      >
+                        {theme.title}
+                      </span>
+                    ))}
+                  </div>
+                </section>
+              ) : null}
 
               {marketVenues.length ? (
                 <section className="proof-strip">
@@ -1692,7 +1744,7 @@ export default function App() {
                           </span>
                         </div>
                         <p>
-                          {item.venue} · {copy.trade.routeScore} {item.score} ·{" "}
+                          {item.venues.join(" · ")} · {copy.trade.routeScore} {item.score} ·{" "}
                           {item.liquidityUsd ? `$${Math.round(item.liquidityUsd).toLocaleString()}` : copy.common.none} liq
                         </p>
                         <div className="report-grid compact-report-grid">
@@ -1722,7 +1774,7 @@ export default function App() {
                 ) : (
                   <div className="empty-state">
                     <strong>{copy.watch.noFeed}</strong>
-                    <p>{copy.watch.noFeedBody}</p>
+                    <p>{marketBoardError ?? copy.watch.noFeedBody}</p>
                   </div>
                 )}
               </section>
@@ -1811,31 +1863,6 @@ export default function App() {
                 )}
               </div>
 
-              <section className="info-card">
-                <span className="panel-kicker">{copy.watch.riskThemes}</span>
-                <p>{copy.watch.riskThemesBody}</p>
-                <div className="chip-wrap">
-                  {marketThemes.length ? (
-                    marketThemes.map((theme) => (
-                      <span
-                        key={theme.title}
-                        className={`reason-chip ${
-                          theme.status === "blocked"
-                            ? "blocking"
-                            : theme.status === "warn"
-                              ? "warning"
-                              : "muted"
-                        }`}
-                      >
-                        {theme.title} · {theme.count}
-                      </span>
-                    ))
-                  ) : (
-                    <span className="reason-chip muted">{copy.common.notLoaded}</span>
-                  )}
-                </div>
-              </section>
-
               <section className="feed-list">
                 {(feedSnapshot?.items ?? []).length ? (
                   feedSnapshot!.items.map((item) => (
@@ -1897,100 +1924,6 @@ export default function App() {
                 </section>
               ) : null}
 
-              <section className="info-card">
-                <span className="panel-kicker">{copy.watch.optionalWatchlist}</span>
-                <p>{copy.watch.optionalWatchlistBody}</p>
-                <div className="signal-controls">
-                  <InlineAdder
-                    label={copy.watch.addToken}
-                    value={watchDrafts.tokens}
-                    placeholder={copy.protect.tokenPlaceholder}
-                    onChange={(value) =>
-                      setWatchDrafts((current) => ({ ...current, tokens: value }))
-                    }
-                    onAdd={() => addWatchlistItem("tokens")}
-                  />
-                  <InlineAdder
-                    label={copy.watch.addPair}
-                    value={watchDrafts.pairs}
-                    placeholder={copy.watch.pairPlaceholder}
-                    onChange={(value) =>
-                      setWatchDrafts((current) => ({ ...current, pairs: value }))
-                    }
-                    onAdd={() => addWatchlistItem("pairs")}
-                  />
-                </div>
-                <div className="signal-controls watch-second-row">
-                  <InlineAdder
-                    label={copy.watch.addVenue}
-                    value={watchDrafts.venues}
-                    placeholder={copy.protect.venuePlaceholder}
-                    onChange={(value) =>
-                      setWatchDrafts((current) => ({ ...current, venues: value }))
-                    }
-                    onAdd={() => addWatchlistItem("venues")}
-                  />
-                </div>
-                {watchlistMatches.length ? (
-                  <div className="feed-list">
-                    {watchlistMatches.map((match) => (
-                      <article className="feed-item-card" key={`${match.kind}:${match.value}`}>
-                        <div className="compact-route-head">
-                          <strong>{match.value}</strong>
-                          <span
-                            className={`status-tag ${
-                              match.highestSeverity === "critical"
-                                ? "alert"
-                                : match.highestSeverity === "elevated"
-                                  ? "warning"
-                                  : "safe"
-                            }`}
-                          >
-                            {match.highestSeverity ?? copy.common.none}
-                          </span>
-                        </div>
-                        <p>
-                          {match.overlapCount} {copy.watch.overlap}
-                        </p>
-                        <div className="chip-wrap">
-                          {match.kind === "token" ? (
-                            <button
-                              type="button"
-                              className="chip-button"
-                              onClick={() => removeWatchlistItem("tokens", match.value)}
-                            >
-                              × {match.value}
-                            </button>
-                          ) : null}
-                          {match.kind === "pair" ? (
-                            <button
-                              type="button"
-                              className="chip-button"
-                              onClick={() => removeWatchlistItem("pairs", match.value)}
-                            >
-                              × {match.value}
-                            </button>
-                          ) : null}
-                          {match.kind === "venue" ? (
-                            <button
-                              type="button"
-                              className="chip-button"
-                              onClick={() => removeWatchlistItem("venues", match.value)}
-                            >
-                              × {match.value}
-                            </button>
-                          ) : null}
-                        </div>
-                      </article>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="empty-state">
-                    <strong>{copy.watch.noWatchlist}</strong>
-                    <p>{copy.watch.noWatchlistBody}</p>
-                  </div>
-                )}
-              </section>
             </div>
           ) : null}
 
@@ -2072,24 +2005,72 @@ export default function App() {
 
         <CanyonLandscape />
       </section>
+
+      {tokenSelectorSide ? (
+        <TokenSelectorModal
+          title={tokenSelectorSide === "input" ? copy.trade.sell : copy.trade.buy}
+          query={tokenSearch}
+          onQueryChange={setTokenSearch}
+          tokens={filteredTokenChoices}
+          onClose={() => {
+            setTokenSelectorSide(null);
+            setTokenSearch("");
+          }}
+          onSelect={(mint) => selectToken(tokenSelectorSide, mint)}
+        />
+      ) : null}
     </div>
   );
 }
 
 function Rocky() {
   return (
-    <svg className="flint-mark" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      {/* Rounded square base — shield-like, like a platform logo */}
-      <rect x="3" y="3" width="30" height="30" rx="9" fill="#f07030"/>
-      {/* Rocky texture ridge line at top */}
-      <path d="M7 14 Q10 9 14 12 Q17 7 20 11 Q23 7 26 11 Q29 8 33 12" stroke="#ff9050" strokeWidth="1.4" fill="none" strokeLinecap="round"/>
-      {/* Eyes */}
-      <circle cx="13.5" cy="20" r="3" fill="white"/>
-      <circle cx="22.5" cy="20" r="3" fill="white"/>
-      <circle cx="13.5" cy="20.5" r="1.5" fill="#1a0804"/>
-      <circle cx="22.5" cy="20.5" r="1.5" fill="#1a0804"/>
-      {/* Smile */}
-      <path d="M14 26.5 Q18 30 22 26.5" stroke="white" strokeWidth="1.8" fill="none" strokeLinecap="round"/>
+    <svg className="flint-mark" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <defs>
+        <linearGradient id="rockyBody" x1="6" y1="6" x2="34" y2="34" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#ff8b43" />
+          <stop offset="1" stopColor="#d04e1a" />
+        </linearGradient>
+      </defs>
+      <rect x="4" y="4" width="32" height="32" rx="11" fill="url(#rockyBody)" />
+      <path
+        d="M8 15.5C10.6 10.8 13.7 12.8 16.2 11.7C18.2 10.8 18.8 7.8 21.2 8.7C23.4 9.5 23.8 12.7 26.2 12.1C28.6 11.4 30.2 10.5 32 14.8"
+        stroke="#ffc08d"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+      />
+      <path
+        d="M10.2 12.3L12.4 8.8L13.1 12.2"
+        fill="#ffd9a8"
+      />
+      <path
+        d="M27.6 10.8L30.4 7.2L30.6 11.4"
+        fill="#ffd9a8"
+      />
+      <ellipse cx="14.2" cy="21" rx="4.1" ry="4.4" fill="#fff8ef" />
+      <ellipse cx="25.8" cy="21" rx="4.1" ry="4.4" fill="#fff8ef" />
+      <circle cx="14.6" cy="21.5" r="1.9" fill="#20110a" />
+      <circle cx="25.4" cy="21.5" r="1.9" fill="#20110a" />
+      <circle cx="15.2" cy="20.6" r="0.7" fill="#fff8ef" />
+      <circle cx="26" cy="20.6" r="0.7" fill="#fff8ef" />
+      <path
+        d="M14 28.2C16 30.2 18.1 31.2 20 31.2C21.9 31.2 24 30.2 26 28.2"
+        stroke="#fff4e8"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <path
+        d="M11.5 17.3C12.6 16.3 13.7 15.9 15 15.9"
+        stroke="#7f2d11"
+        strokeWidth="1.1"
+        strokeLinecap="round"
+      />
+      <path
+        d="M25 15.9C26.3 15.9 27.4 16.3 28.5 17.3"
+        stroke="#7f2d11"
+        strokeWidth="1.1"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }
@@ -2168,6 +2149,114 @@ function ShellTab({
     >
       {label}
     </button>
+  );
+}
+
+function TokenSelectButton({
+  token,
+  onClick,
+}: {
+  token: TokenOption | null;
+  onClick: () => void;
+}) {
+  return (
+    <button type="button" className="token-select-button" onClick={onClick}>
+      <span className="token-select-symbol">{token?.symbol ?? "Token"}</span>
+      <span className="token-select-name">{token?.name ?? "Choose asset"}</span>
+      <span className="token-select-chevron">▾</span>
+    </button>
+  );
+}
+
+function QuoteCountdownPill({
+  countdown,
+  isRefreshing,
+  label,
+  refreshingLabel,
+  readyLabel,
+}: {
+  countdown: number | null;
+  isRefreshing: boolean;
+  label: string;
+  refreshingLabel: string;
+  readyLabel: string;
+}) {
+  return (
+    <div className="countdown-pill" aria-live="polite">
+      <span>{label}</span>
+      <strong>
+        {isRefreshing
+          ? refreshingLabel
+          : countdown !== null
+            ? formatCountdown(countdown)
+            : readyLabel}
+      </strong>
+    </div>
+  );
+}
+
+function TokenSelectorModal({
+  title,
+  query,
+  onQueryChange,
+  tokens,
+  onClose,
+  onSelect,
+}: {
+  title: string;
+  query: string;
+  onQueryChange: (next: string) => void;
+  tokens: TokenOption[];
+  onClose: () => void;
+  onSelect: (mint: string) => void;
+}) {
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
+
+  return (
+    <div className="token-modal-backdrop" onClick={onClose}>
+      <div className="token-modal" onClick={(event) => event.stopPropagation()}>
+        <div className="token-modal-head">
+          <div>
+            <span className="panel-kicker">{title}</span>
+            <h2>Choose asset</h2>
+          </div>
+          <button type="button" className="ghost-button" onClick={onClose}>
+            Close
+          </button>
+        </div>
+        <label className="field">
+          <span>Search</span>
+          <input
+            value={query}
+            placeholder="Search symbol, name, or mint"
+            onChange={(event) => onQueryChange(event.target.value)}
+            autoFocus
+          />
+        </label>
+        <div className="token-modal-list">
+          {tokens.map((token) => (
+            <button
+              key={token.mint}
+              type="button"
+              className="token-row"
+              onClick={() => onSelect(token.mint)}
+            >
+              <div>
+                <strong>{token.symbol}</strong>
+                <p>{token.name}</p>
+              </div>
+              <span>{shortenAddress(token.mint)}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -2330,6 +2419,18 @@ function TradeDecisionCard({
         <span className="panel-kicker">{copy.trade.liveRouteBoard}</span>
         <strong>{variant.title}</strong>
         <p>{variant.body}</p>
+        {assessment?.reasons?.length ? (
+          <div className="chip-wrap dense-chip-wrap">
+            {assessment.reasons.slice(0, 3).map((reason) => (
+              <span
+                key={reason.id}
+                className={`reason-chip ${reason.blocking ? "blocking" : "warning"}`}
+              >
+                {reason.title}
+              </span>
+            ))}
+          </div>
+        ) : null}
       </div>
       <div className="trade-decision-side">
         <span className={`status-tag ${variant.tone}`}>{assessment?.status ?? "unknown"}</span>
@@ -2856,6 +2957,35 @@ function describeAssessment(
     case "safe":
       return copy.trade.routeReadyTitle;
   }
+}
+
+function describeNetworkError(error: unknown, surface: "quote" | "feed" | "market" | "orders") {
+  if (error instanceof Error) {
+    if (error.message === "network_unavailable" || error.message === "Failed to fetch") {
+      switch (surface) {
+        case "quote":
+          return "Live quote data is temporarily unavailable. Flint kept your current trade form intact.";
+        case "feed":
+          return "Relay data is temporarily unavailable. Flint kept the local watch surface active.";
+        case "market":
+          return "Live market data is temporarily unavailable. Flint kept the last market board.";
+        case "orders":
+          return "Live order data is temporarily unavailable. Try refreshing again in a moment.";
+      }
+    }
+    if (error.message === "request_timeout") {
+      return "The live request timed out before the provider responded.";
+    }
+    return error.message;
+  }
+  return `${surface}_request_failed`;
+}
+
+function formatCountdown(seconds: number) {
+  const safeSeconds = Math.max(0, seconds);
+  return `${String(Math.floor(safeSeconds / 60)).padStart(2, "0")}:${String(
+    safeSeconds % 60
+  ).padStart(2, "0")}`;
 }
 
 function dedupeStrings(values: string[]) {

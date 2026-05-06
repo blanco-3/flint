@@ -1,6 +1,7 @@
 import type { SafetyFeedItem, SafetyFeedSnapshot } from "./guard-types";
 
 const DEFAULT_RELAY_BASE = "http://127.0.0.1:8787";
+const REQUEST_TIMEOUT_MS = 5000;
 
 export async function publishSafetyFeedItem(item: SafetyFeedItem, baseUrl = DEFAULT_RELAY_BASE) {
   return request(`${baseUrl}/safety-feed`, {
@@ -22,18 +23,33 @@ export async function fetchSafetyIncident(incidentId: string, baseUrl = DEFAULT_
 }
 
 async function request(url: string, init: RequestInit) {
-  const response = await fetch(url, {
-    ...init,
-    headers: {
-      "content-type": "application/json",
-      ...(init.headers || {}),
-    },
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const response = await fetch(url, {
+      ...init,
+      signal: controller.signal,
+      headers: {
+        "content-type": "application/json",
+        ...(init.headers || {}),
+      },
+    });
 
-  const payload = await response.json();
-  if (!response.ok) {
-    throw new Error(payload.error || `request failed: ${response.status}`);
+    const payload = await response.json();
+    if (!response.ok) {
+      throw new Error(payload.error || `request failed: ${response.status}`);
+    }
+
+    return payload;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error("request_timeout");
+    }
+    if (error instanceof TypeError) {
+      throw new Error("network_unavailable");
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
   }
-
-  return payload;
 }

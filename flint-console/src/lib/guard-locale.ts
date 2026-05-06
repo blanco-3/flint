@@ -62,6 +62,9 @@ export const COPY = {
       hops: "Hops",
       clearRouteTitle: "Route is clear",
       clearRouteBody: "No blocking or warning reasons were detected for the current policy.",
+      quoteRefresh: "Refresh in",
+      quoteRefreshing: "Updating",
+      quoteIdle: "Live",
     },
     protect: {
       kicker: "Panic desk",
@@ -122,6 +125,8 @@ export const COPY = {
       feedSnapshot: "Feed snapshot",
       currentProfile: "Current action profile",
       marketStatus: "Market status",
+      refreshCycle: "Cycle",
+      refreshReady: "Live",
       assetHealth: "Asset health board",
       assetHealthBody:
         "Flint auto-scores major monitored assets from live route and pool conditions instead of waiting for manual input.",
@@ -135,24 +140,11 @@ export const COPY = {
       riskThemes: "What is breaking now",
       riskThemesBody:
         "Repeated risk themes across live pairs are usually where the market is leaking value fastest.",
+      topDrivers: "Why risk is rising",
       openPool: "Open pool",
       importBundle: "Import bundle",
       importBody:
         "Load a deterministic incident bundle from another console or operator.",
-      watchlist: "Risk watchlist",
-      watchlistBody:
-        "Track tokens, pairs, and venues even when you are not preparing a swap.",
-      optionalWatchlist: "Custom overlay",
-      optionalWatchlistBody:
-        "Optional: add your own tokens, pairs, or venues on top of the automatic market board.",
-      addToken: "Add token",
-      addPair: "Add pair",
-      addVenue: "Add venue",
-      pairPlaceholder: "e.g. SOL::BONK",
-      overlap: "overlap",
-      noWatchlist: "No watchlist items yet",
-      noWatchlistBody:
-        "Add a token, pair, or venue to monitor overlap with active incidents.",
       selectedIncident: "Feed detail",
       openProtectDesk: "Open in Protect",
     },
@@ -258,6 +250,9 @@ export const COPY = {
       hops: "홉 수",
       clearRouteTitle: "경로가 깨끗합니다",
       clearRouteBody: "현재 정책 기준으로 차단 또는 경고 사유가 감지되지 않았습니다.",
+      quoteRefresh: "다음 갱신",
+      quoteRefreshing: "업데이트 중",
+      quoteIdle: "라이브",
     },
     protect: {
       kicker: "패닉 데스크",
@@ -318,6 +313,8 @@ export const COPY = {
       feedSnapshot: "피드 스냅샷",
       currentProfile: "현재 액션 프로필",
       marketStatus: "시장 상태",
+      refreshCycle: "주기",
+      refreshReady: "라이브",
       assetHealth: "자산 건강도 보드",
       assetHealthBody:
         "수동 입력을 기다리지 않고, Flint가 주요 자산을 실시간 경로와 풀 상태로 자동 점수화합니다.",
@@ -331,24 +328,11 @@ export const COPY = {
       riskThemes: "지금 반복되는 위험",
       riskThemesBody:
         "여러 라이브 페어에서 반복되는 위험 테마는 시장에서 가장 빠르게 가치가 새는 지점입니다.",
+      topDrivers: "지금 위험이 커지는 이유",
       openPool: "풀 열기",
       importBundle: "번들 불러오기",
       importBody:
         "다른 콘솔/운영자가 만든 deterministic incident bundle을 불러옵니다.",
-      watchlist: "리스크 관심목록",
-      watchlistBody:
-        "스왑을 준비하지 않아도 토큰, 페어, 베뉴 위험 겹침을 계속 볼 수 있습니다.",
-      optionalWatchlist: "사용자 오버레이",
-      optionalWatchlistBody:
-        "선택 사항: 자동 시장 보드 위에 직접 추적할 토큰, 페어, 베뉴를 덧붙일 수 있습니다.",
-      addToken: "토큰 추가",
-      addPair: "페어 추가",
-      addVenue: "베뉴 추가",
-      pairPlaceholder: "예: SOL::BONK",
-      overlap: "겹침",
-      noWatchlist: "아직 watchlist 항목이 없습니다",
-      noWatchlistBody:
-        "토큰, 페어, 베뉴를 추가해 활성 incident와의 겹침을 추적하세요.",
       selectedIncident: "피드 상세",
       openProtectDesk: "Protect에서 열기",
     },

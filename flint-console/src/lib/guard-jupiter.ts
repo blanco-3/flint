@@ -2,6 +2,7 @@ import type { JupiterQuote, TriggerOrder } from "./guard-types";
 
 const SWAP_API_ROOT = "https://lite-api.jup.ag/swap/v1";
 const TRIGGER_API_ROOT = "https://lite-api.jup.ag/trigger/v1";
+const REQUEST_TIMEOUT_MS = 12000;
 
 export async function fetchQuote(input: {
   inputMint: string;
@@ -25,28 +26,28 @@ export async function fetchQuote(input: {
     url.searchParams.set("onlyDirectRoutes", "true");
   }
 
-  const response = await fetch(url.toString());
-  const payload = (await response.json()) as JupiterQuote & { error?: string };
-  if (!response.ok || payload.error) {
+  const payload = await requestJson<JupiterQuote & { error?: string }>(url.toString());
+  if (payload.error) {
     throw new Error(payload.error || "quote_fetch_failed");
   }
   return payload;
 }
 
 export async function buildSwapTransaction(userPublicKey: string, quoteResponse: JupiterQuote) {
-  const response = await fetch(`${SWAP_API_ROOT}/swap`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({
-      userPublicKey,
-      quoteResponse,
-    }),
-  });
-
-  const payload = (await response.json()) as { error?: string; swapTransaction?: string };
-  if (!response.ok || payload.error || !payload.swapTransaction) {
+  const payload = await requestJson<{ error?: string; swapTransaction?: string }>(
+    `${SWAP_API_ROOT}/swap`,
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        userPublicKey,
+        quoteResponse,
+      }),
+    }
+  );
+  if (payload.error || !payload.swapTransaction) {
     throw new Error(payload.error || "swap_transaction_build_failed");
   }
   return {
@@ -65,14 +66,13 @@ export async function fetchTriggerOrders(user: string) {
     url.searchParams.set("orderStatus", "active");
     url.searchParams.set("page", String(page));
 
-    const response = await fetch(url.toString());
-    const payload = (await response.json()) as {
+    const payload = await requestJson<{
       error?: string;
       orders?: TriggerOrder[];
       page?: number;
       totalPages?: number;
-    };
-    if (!response.ok || payload.error) {
+    }>(url.toString());
+    if (payload.error) {
       throw new Error(payload.error || "trigger_order_fetch_failed");
     }
 
@@ -105,19 +105,18 @@ export async function buildCancelTransactions(maker: string, orders: string[]) {
     };
   }
 
-  const response = await fetch(`${TRIGGER_API_ROOT}/${endpoint}`, {
+  const payload = await requestJson<{
+    error?: string;
+    transaction?: string;
+    transactions?: string[];
+  }>(`${TRIGGER_API_ROOT}/${endpoint}`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
     },
     body: JSON.stringify(body),
   });
-  const payload = (await response.json()) as {
-    error?: string;
-    transaction?: string;
-    transactions?: string[];
-  };
-  if (!response.ok || payload.error) {
+  if (payload.error) {
     throw new Error(payload.error || "panic_cancel_build_failed");
   }
   const transactions = payload.transactions ?? (payload.transaction ? [payload.transaction] : []);
@@ -125,4 +124,30 @@ export async function buildCancelTransactions(maker: string, orders: string[]) {
     throw new Error("panic_cancel_build_returned_no_transactions");
   }
   return { transactions };
+}
+
+async function requestJson<T>(url: string, init?: RequestInit) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const response = await fetch(url, {
+      ...init,
+      signal: controller.signal,
+    });
+    const payload = (await response.json()) as T & { error?: string };
+    if (!response.ok) {
+      throw new Error(payload.error || `request failed: ${response.status}`);
+    }
+    return payload;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error("request_timeout");
+    }
+    if (error instanceof TypeError) {
+      throw new Error("network_unavailable");
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
