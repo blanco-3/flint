@@ -193,6 +193,7 @@ export default function App() {
   const [isBackgroundRefreshingQuote, setIsBackgroundRefreshingQuote] = useState(false);
   const [tokenSelectorSide, setTokenSelectorSide] = useState<"input" | "output" | null>(null);
   const [tokenSearch, setTokenSearch] = useState("");
+  const [showLabControls, setShowLabControls] = useState(false);
   const copy = useMemo(() => localeCopy(locale), [locale]);
 
   const basePolicy = useMemo(() => policyCopy(POLICY_PRESETS[policyPreset]), [policyPreset]);
@@ -1348,6 +1349,7 @@ export default function App() {
                   />
                   <TokenSelectButton
                     token={selectedInputToken}
+                    copy={copy}
                     onClick={() => setTokenSelectorSide("input")}
                   />
                 </div>
@@ -1382,6 +1384,7 @@ export default function App() {
                   </div>
                   <TokenSelectButton
                     token={selectedOutputToken}
+                    copy={copy}
                     onClick={() => setTokenSelectorSide("output")}
                   />
                 </div>
@@ -1600,6 +1603,7 @@ export default function App() {
                   onToggleSafeMode={setSafeMode}
                   panicMode={panicMode}
                   onTogglePanicMode={setPanicMode}
+                  copy={copy}
                 />
               </div>
 
@@ -1657,6 +1661,8 @@ export default function App() {
                 dataMode={dataMode}
                 selectedOrderKeys={selectedOrderKeys}
                 onToggle={toggleOrderSelection}
+                copy={copy}
+                hasError={Boolean(orderError)}
               />
 
               <div className="panic-actions">
@@ -1692,47 +1698,51 @@ export default function App() {
 
               <section className="proof-strip">
                 <ProofCard
-                  title="Flint kernel proof"
-                  detail={`Program ${shortenAddress(devnetDeploy.programId)} is deployed on devnet with real happy and timeout smoke artifacts.`}
+                  title={copy.activity.kernelProof}
+                  detail={`${copy.activity.kernelProofBody} Program ${shortenAddress(devnetDeploy.programId)}.`}
                   href={devnetDeploy.programExplorer}
-                  cta="Open program"
+                  cta={copy.common.open}
                 />
                 <ProofCard
-                  title="Happy path proof"
+                  title={copy.activity.happyPathProof}
                   detail={`submit_intent -> submit_bid -> settle_auction completed on devnet: ${shortenAddress(devnetHappy.terminalSignature)}`}
                   href={devnetHappy.terminalExplorer}
-                  cta="Open settle tx"
+                  cta={copy.common.open}
                 />
                 <ProofCard
-                  title="Timeout recovery proof"
+                  title={copy.activity.timeoutProof}
                   detail={`refund_after_timeout completed on devnet: ${shortenAddress(devnetTimeout.terminalSignature)}`}
                   href={devnetTimeout.terminalExplorer}
-                  cta="Open refund tx"
+                  cta={copy.common.open}
                 />
                 <ProofCard
-                  title="Submission posture"
-                  detail="Use Watch as the live front door, then move into Trade or Protect when action is required."
+                  title={copy.activity.submissionPosture}
+                  detail={copy.activity.submissionPostureBody}
                 />
                 <ProofCard
-                  title="Audit trail"
-                  detail={`Incident ${incidentPack.id.split(":").slice(0, 3).join(":")} is exportable as a deterministic bundle.`}
+                  title={copy.activity.auditTrail}
+                  detail={`${copy.activity.auditTrailBody} Incident ${incidentPack.id.split(":").slice(0, 3).join(":")}.`}
                 />
                 <ProofCard
-                  title="Safety feed preview"
+                  title={copy.activity.safetyFeedPreview}
                   detail={`${safetyFeedPreview.itemCount} item · ${safetyFeedPreview.criticalCount} critical · profile ${actionProfileId}`}
                 />
               </section>
 
               <section className="logs-grid">
                 <LogPanel
-                  title="Activity log"
-                  description="Every route fetch, wallet action, and transaction submission."
+                  title={copy.activity.activityLog}
+                  description={copy.activity.activityBody}
                   entries={activityLog}
+                  emptyTitle={copy.activity.noActivityYet}
+                  emptyBody={copy.activity.noActivityYetBody}
                 />
                 <LogPanel
-                  title="Incident log"
-                  description="Only blocked routes, panic signals, and failed executions."
+                  title={copy.activity.incidentLog}
+                  description={copy.activity.incidentBody}
                   entries={incidentLog}
+                  emptyTitle={copy.activity.noActivityYet}
+                  emptyBody={copy.activity.noActivityYetBody}
                 />
               </section>
             </div>
@@ -2106,15 +2116,15 @@ export default function App() {
               <div className="hero-grid compact">
                 <MetricCard label={copy.common.dataMode} value={dataMode === "demo" ? copy.common.labMode : copy.common.liveApis} />
                 <MetricCard
-                  label="Flint kernel"
+                  label={copy.settings.kernelLabel}
                   value="Devnet verified"
                   detail={shortenAddress(devnetDeploy.programId)}
                 />
-                <MetricCard label="Swap execution path" value="Jupiter Metis" />
-                <MetricCard label="Panic order path" value="Jupiter Trigger V1" />
-                <MetricCard label="Policy" value={policy.label} detail={formatPolicySummary(policy)} />
+                <MetricCard label={copy.settings.executionPath} value="Jupiter Metis" />
+                <MetricCard label={copy.settings.panicPath} value="Jupiter Trigger V1" />
+                <MetricCard label={copy.settings.policyLabel} value={policy.label} detail={formatPolicySummary(policy)} />
                 <MetricCard label={copy.common.currentPanel} value={activePanel} />
-                <MetricCard label="Incident severity" value={incidentPack.severity} />
+                <MetricCard label={copy.settings.incidentSeverity} value={incidentPack.severity} />
                 <MetricCard label={copy.settings.actionProfile} value={copy.profiles[actionProfileId]} />
               </div>
               <div className="signal-panel">
@@ -2123,6 +2133,7 @@ export default function App() {
                 </div>
                 <SlippageField
                   value={form.slippageBps}
+                  label={copy.trade.maxSlippage}
                   onChange={(value) =>
                     setForm((current) => ({ ...current, slippageBps: value }))
                   }
@@ -2146,33 +2157,48 @@ export default function App() {
                     </button>
                   ))}
                 </div>
-                <ModeToggle
-                  dataMode={dataMode}
-                  onChange={handleDataModeChange}
-                  activeScenarioId={demoScenario}
-                  onScenarioChange={activateDemoScenario}
-                  labels={copy.common}
-                />
               </div>
 
               <section className="info-card">
-                <span className="panel-kicker">{copy.common.labMode}</span>
-                <h2>{copy.watch.importBundle}</h2>
-                <p>{copy.watch.importBody}</p>
-                <label className="proof-card upload-card settings-upload-card">
-                  <strong>{copy.watch.importBundle}</strong>
-                  <p>{copy.watch.importBody}</p>
-                  <input type="file" accept="application/json" onChange={handleImportBundle} />
-                </label>
-              </section>
+                <div className="compact-route-head">
+                  <span className="panel-kicker">{copy.settings.labControls}</span>
+                  <button
+                    type="button"
+                    className="ghost-button"
+                    onClick={() => setShowLabControls((current) => !current)}
+                  >
+                    {showLabControls ? copy.settings.hideLab : copy.settings.showLab}
+                  </button>
+                </div>
+                {showLabControls ? (
+                  <>
+                    <ModeToggle
+                      dataMode={dataMode}
+                      onChange={handleDataModeChange}
+                      activeScenarioId={demoScenario}
+                      onScenarioChange={activateDemoScenario}
+                      labels={copy.common}
+                    />
+                    <h2>{copy.watch.importBundle}</h2>
+                    <p>{copy.watch.importBody}</p>
+                    <label className="proof-card upload-card settings-upload-card">
+                      <strong>{copy.watch.importBundle}</strong>
+                      <p>{copy.watch.importBody}</p>
+                      <input type="file" accept="application/json" onChange={handleImportBundle} />
+                    </label>
 
-              {importedBundle ? (
-                <>
-                  <IncidentPackCard incidentPack={importedBundle.incidentPack} labels={copy.cards} />
-                  <DecisionReportCard report={importedBundle.decisionReport} labels={copy.cards} />
-                  <ActionPlanCard plan={importedBundle.panicActionPlan} labels={copy.cards} />
-                </>
-              ) : null}
+                    {importedBundle ? (
+                      <>
+                        <IncidentPackCard incidentPack={importedBundle.incidentPack} labels={copy.cards} />
+                        <DecisionReportCard report={importedBundle.decisionReport} labels={copy.cards} />
+                        <ActionPlanCard plan={importedBundle.panicActionPlan} labels={copy.cards} />
+                      </>
+                    ) : null}
+                  </>
+                ) : (
+                  <p>{copy.common.labMode}</p>
+                )}
+              </section>
             </div>
           ) : null}
         </section>
@@ -2329,15 +2355,17 @@ function ShellTab({
 
 function TokenSelectButton({
   token,
+  copy,
   onClick,
 }: {
   token: TokenOption | null;
+  copy: ReturnType<typeof localeCopy>;
   onClick: () => void;
 }) {
   return (
     <button type="button" className="token-select-button" onClick={onClick}>
-      <span className="token-select-symbol">{token?.symbol ?? "Token"}</span>
-      <span className="token-select-name">{token?.name ?? "Choose asset"}</span>
+      <span className="token-select-symbol">{token?.symbol ?? copy.trade.tokenModalTitle}</span>
+      <span className="token-select-name">{token?.name ?? copy.trade.tokenModalTitle}</span>
       <span className="token-select-chevron">▾</span>
     </button>
   );
@@ -2741,23 +2769,29 @@ function OrderTable({
   dataMode,
   selectedOrderKeys,
   onToggle,
+  copy,
+  hasError,
 }: {
   assessments: OrderAssessment[];
   ordersLoaded: boolean;
   dataMode: GuardDataMode;
   selectedOrderKeys: string[];
   onToggle: (orderKey: string) => void;
+  copy: ReturnType<typeof localeCopy>;
+  hasError: boolean;
 }) {
   if (!assessments.length) {
     return (
       <div className="empty-state">
-        <strong>{ordersLoaded ? "No active trigger orders found" : "No trigger orders loaded yet"}</strong>
+        <strong>{ordersLoaded ? copy.protect.noOrdersFound : copy.protect.noOrdersLoaded}</strong>
         <p>
           {ordersLoaded
-            ? "The fetch completed successfully, but there are no orders matching the current wallet or seeded scenario."
+            ? copy.protect.noOrdersFoundBody
             : dataMode === "demo"
               ? "Load seeded demo orders to show the panic workflow."
-              : "Connect a wallet, refresh, and Flint will mark panic cancel candidates automatically."}
+              : hasError
+                ? copy.common.notLoaded
+                : copy.protect.noOrdersLoadedBody}
         </p>
       </div>
     );
@@ -2790,7 +2824,7 @@ function OrderTable({
               <p>{shortenAddress(assessment.order.orderKey)}</p>
             </div>
             <span className={`status-tag ${assessment.candidate ? "alert" : "safe"}`}>
-              {assessment.candidate ? "cancel candidate" : "monitor"}
+              {assessment.candidate ? copy.protect.cancelCandidate : copy.protect.monitorOnly}
             </span>
           </div>
           <div className="order-metrics">
@@ -2807,7 +2841,7 @@ function OrderTable({
             {assessment.reasons.length ? (
               assessment.reasons.map((reason) => <ReasonChip key={reason.id} reason={reason} />)
             ) : (
-              <span className="reason-chip muted">No active panic reason</span>
+              <span className="reason-chip muted">{copy.protect.noPanicReason}</span>
             )}
           </div>
         </label>
@@ -2820,10 +2854,14 @@ function LogPanel({
   title,
   description,
   entries,
+  emptyTitle,
+  emptyBody,
 }: {
   title: string;
   description: string;
   entries: ActivityLogEntry[];
+  emptyTitle: string;
+  emptyBody: string;
 }) {
   return (
     <section className="panel">
@@ -2850,8 +2888,8 @@ function LogPanel({
         </div>
       ) : (
         <div className="empty-state">
-          <strong>No log entries yet</strong>
-          <p>Flint Guard will persist every quote decision and panic action here.</p>
+          <strong>{emptyTitle}</strong>
+          <p>{emptyBody}</p>
         </div>
       )}
     </section>
@@ -2922,14 +2960,16 @@ function ProofCard({
 
 function SlippageField({
   value,
+  label,
   onChange,
 }: {
   value: number;
+  label: string;
   onChange: (next: number) => void;
 }) {
   return (
     <label className="field">
-      <span>Slippage (bps)</span>
+      <span>{label}</span>
       <select value={value} onChange={(event) => onChange(Number(event.target.value))}>
         {[30, 50, 75, 100, 150].map((option) => (
           <option key={option} value={option}>
@@ -2948,6 +2988,7 @@ function PresetToggle({
   onToggleSafeMode,
   panicMode,
   onTogglePanicMode,
+  copy,
 }: {
   preset: GuardPolicyPreset;
   onChange: (preset: GuardPolicyPreset) => void;
@@ -2955,6 +2996,7 @@ function PresetToggle({
   onToggleSafeMode: (next: boolean) => void;
   panicMode: boolean;
   onTogglePanicMode: (next: boolean) => void;
+  copy: ReturnType<typeof localeCopy>;
 }) {
   return (
     <>
@@ -2971,14 +3013,14 @@ function PresetToggle({
         ))}
       </div>
       <ToggleLine
-        label="Safe mode"
-        description="Block unsafe routes and only allow a safer fallback."
+        label={copy.protect.safeModeLabel}
+        description={copy.protect.safeModeBody}
         checked={safeMode}
         onChange={onToggleSafeMode}
       />
       <ToggleLine
-        label="Panic mode"
-        description="Collect risky open trigger orders as cancel candidates."
+        label={copy.protect.panicModeLabel}
+        description={copy.protect.panicModeBody}
         checked={panicMode}
         onChange={onTogglePanicMode}
       />
