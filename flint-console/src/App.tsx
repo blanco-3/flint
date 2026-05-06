@@ -2191,8 +2191,7 @@ function CanyonLandscape() {
       >
         <defs>
           {/* Canyon walls: transparent at top, solid at bottom */}
-          <linearGradient id="wallFade" x1="0" y1="0" x2="0" y2="1" gradientUnits="userSpaceOnUse"
-            x1="0" y1="0" x2="0" y2="900">
+          <linearGradient id="wallFade" x1="0" y1="0" x2="0" y2="900" gradientUnits="userSpaceOnUse">
             <stop offset="0%"   stopColor="#3c1608" stopOpacity="0"/>
             <stop offset="28%"  stopColor="#3c1608" stopOpacity="0.55"/>
             <stop offset="60%"  stopColor="#4e2010" stopOpacity="0.93"/>
