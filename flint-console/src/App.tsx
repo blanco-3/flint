@@ -1734,41 +1734,23 @@ export default function App() {
                     : copy.common.notLoaded}
                 </p>
                 {marketBoard.length ? (
-                  <div className="feed-list">
-                    {marketBoard.map((item) => (
-                      <article className="feed-item-card" key={item.pairKey}>
-                        <div className="compact-route-head">
-                          <strong>{item.pairKey}</strong>
-                          <span className={`status-tag ${item.status === "blocked" ? "alert" : item.status === "warn" ? "warning" : "safe"}`}>
-                            {item.status}
-                          </span>
-                        </div>
-                        <p>
-                          {item.venues.join(" · ")} · {copy.trade.routeScore} {item.score} ·{" "}
-                          {item.liquidityUsd ? `$${Math.round(item.liquidityUsd).toLocaleString()}` : copy.common.none} liq
-                        </p>
-                        <div className="report-grid compact-report-grid">
-                          <SummaryPill
-                            label={copy.trade.priceImpact}
-                            value={
-                              typeof item.priceImpactPct === "number" && Number.isFinite(item.priceImpactPct)
-                                ? `${item.priceImpactPct.toFixed(2)}%`
-                                : copy.common.none
-                            }
-                          />
-                          <SummaryPill label={copy.watch.marketStatus} value={item.status} />
-                        </div>
-                        <div className="chip-wrap">
-                          {item.reasonTitles.length ? item.reasonTitles.map((reason) => (
-                            <span key={`${item.pairKey}:${reason}`} className="reason-chip warning">{reason}</span>
-                          )) : <span className="reason-chip muted">{copy.watch.clearNow}</span>}
-                        </div>
-                        {item.poolUrl ? (
-                          <a className="inline-link" href={item.poolUrl} target="_blank" rel="noreferrer">
-                            {copy.watch.openPool}
-                          </a>
-                        ) : null}
-                      </article>
+                  <div className="leaderboard-list">
+                    {marketBoard.map((item, index) => (
+                      <LeaderboardRow
+                        key={item.pairKey}
+                        rank={index + 1}
+                        title={item.pairKey}
+                        subtitle={`${item.venues.join(" · ")} · ${copy.trade.routeScore} ${item.score}`}
+                        status={item.status}
+                        detail={
+                          typeof item.priceImpactPct === "number" && Number.isFinite(item.priceImpactPct)
+                            ? `${copy.trade.priceImpact} ${item.priceImpactPct.toFixed(2)}%`
+                            : copy.common.none
+                        }
+                        chips={item.reasonTitles.length ? item.reasonTitles : [copy.watch.clearNow]}
+                        linkLabel={item.poolUrl ? copy.watch.openPool : undefined}
+                        linkHref={item.poolUrl ?? undefined}
+                      />
                     ))}
                   </div>
                 ) : (
@@ -1810,35 +1792,17 @@ export default function App() {
                 <span className="panel-kicker">{copy.watch.assetHealth}</span>
                 <p>{copy.watch.assetHealthBody}</p>
                 {marketTokens.length ? (
-                  <div className="asset-health-grid">
-                    {marketTokens.map((asset) => (
-                      <article className={`asset-health-card ${asset.status}`} key={asset.symbol}>
-                        <div className="compact-route-head">
-                          <strong>{asset.symbol}</strong>
-                          <span className={`status-tag ${asset.status === "blocked" ? "alert" : asset.status === "warn" ? "warning" : "safe"}`}>
-                            {asset.status}
-                          </span>
-                        </div>
-                        <div className="asset-score-row">
-                          <span>{copy.watch.assetScore}</span>
-                          <strong>{asset.averageScore}</strong>
-                        </div>
-                        <p>
-                          {asset.pairCount} {copy.watch.monitoredPairs} · {asset.venueCount}{" "}
-                          {copy.watch.monitoredVenues}
-                        </p>
-                        <div className="chip-wrap">
-                          {asset.topReasons.length ? (
-                            asset.topReasons.map((reason) => (
-                              <span key={`${asset.symbol}:${reason}`} className="reason-chip warning">
-                                {reason}
-                              </span>
-                            ))
-                          ) : (
-                            <span className="reason-chip muted">{copy.watch.clearNow}</span>
-                          )}
-                        </div>
-                      </article>
+                  <div className="leaderboard-list compact">
+                    {marketTokens.map((asset, index) => (
+                      <LeaderboardRow
+                        key={asset.symbol}
+                        rank={index + 1}
+                        title={asset.symbol}
+                        subtitle={`${asset.pairCount} ${copy.watch.monitoredPairs} · ${asset.venueCount} ${copy.watch.monitoredVenues}`}
+                        status={asset.status}
+                        detail={`${copy.watch.assetScore} ${asset.averageScore}`}
+                        chips={asset.topReasons.length ? asset.topReasons : [copy.watch.clearNow]}
+                      />
                     ))}
                   </div>
                 ) : (
@@ -1849,19 +1813,29 @@ export default function App() {
                 )}
               </section>
 
-              <div className="proof-strip">
+              <section className="info-card">
+                <span className="panel-kicker">{copy.watch.venuePressure}</span>
+                <p>{copy.watch.riskThemesBody}</p>
                 {marketVenues.length ? (
-                  marketVenues.map((venue) => (
-                    <ProofCard
-                      key={venue.venue}
-                      title={venue.venue}
-                      detail={`${venue.count} ${copy.watch.venueRoutes} · ${venue.blockedCount} ${copy.watch.blockedNow}`}
-                    />
-                  ))
+                  <div className="leaderboard-list compact">
+                    {marketVenues.map((venue, index) => (
+                      <LeaderboardRow
+                        key={venue.venue}
+                        rank={index + 1}
+                        title={venue.venue}
+                        subtitle={`${venue.count} ${copy.watch.venueRoutes}`}
+                        status={venue.status}
+                        detail={`${venue.blockedCount} ${copy.watch.blockedNow}`}
+                      />
+                    ))}
+                  </div>
                 ) : (
-                  <ProofCard title={copy.watch.venuePressure} detail={copy.common.notLoaded} />
+                  <div className="empty-state">
+                    <strong>{copy.watch.venuePressure}</strong>
+                    <p>{copy.common.notLoaded}</p>
+                  </div>
                 )}
-              </div>
+              </section>
 
               <section className="feed-list">
                 {(feedSnapshot?.items ?? []).length ? (
@@ -2009,6 +1983,7 @@ export default function App() {
       {tokenSelectorSide ? (
         <TokenSelectorModal
           title={tokenSelectorSide === "input" ? copy.trade.sell : copy.trade.buy}
+          copy={copy}
           query={tokenSearch}
           onQueryChange={setTokenSearch}
           tokens={filteredTokenChoices}
@@ -2197,6 +2172,7 @@ function QuoteCountdownPill({
 
 function TokenSelectorModal({
   title,
+  copy,
   query,
   onQueryChange,
   tokens,
@@ -2204,6 +2180,7 @@ function TokenSelectorModal({
   onSelect,
 }: {
   title: string;
+  copy: ReturnType<typeof localeCopy>;
   query: string;
   onQueryChange: (next: string) => void;
   tokens: TokenOption[];
@@ -2224,17 +2201,17 @@ function TokenSelectorModal({
         <div className="token-modal-head">
           <div>
             <span className="panel-kicker">{title}</span>
-            <h2>Choose asset</h2>
+            <h2>{copy.trade.tokenModalTitle}</h2>
           </div>
           <button type="button" className="ghost-button" onClick={onClose}>
-            Close
+            {copy.trade.tokenModalClose}
           </button>
         </div>
         <label className="field">
-          <span>Search</span>
+          <span>{copy.trade.tokenModalSearch}</span>
           <input
             value={query}
-            placeholder="Search symbol, name, or mint"
+            placeholder={copy.trade.tokenModalPlaceholder}
             onChange={(event) => onQueryChange(event.target.value)}
             autoFocus
           />
@@ -2257,6 +2234,65 @@ function TokenSelectorModal({
         </div>
       </div>
     </div>
+  );
+}
+
+function LeaderboardRow({
+  rank,
+  title,
+  subtitle,
+  status,
+  detail,
+  chips = [],
+  linkLabel,
+  linkHref,
+}: {
+  rank: number;
+  title: string;
+  subtitle: string;
+  status: "safe" | "warn" | "blocked";
+  detail: string;
+  chips?: string[];
+  linkLabel?: string;
+  linkHref?: string;
+}) {
+  return (
+    <article className="leaderboard-row">
+      <div className="leaderboard-rank">{String(rank).padStart(2, "0")}</div>
+      <div className="leaderboard-main">
+        <div className="compact-route-head">
+          <strong>{title}</strong>
+          <span
+            className={`status-tag ${
+              status === "blocked" ? "alert" : status === "warn" ? "warning" : "safe"
+            }`}
+          >
+            {status}
+          </span>
+        </div>
+        <p>{subtitle}</p>
+        {chips.length ? (
+          <div className="chip-wrap tight-chip-wrap">
+            {chips.map((chip) => (
+              <span
+                key={`${title}:${chip}`}
+                className={`reason-chip ${status === "blocked" ? "blocking" : status === "warn" ? "warning" : "muted"}`}
+              >
+                {chip}
+              </span>
+            ))}
+          </div>
+        ) : null}
+      </div>
+      <div className="leaderboard-side">
+        <strong>{detail}</strong>
+        {linkLabel && linkHref ? (
+          <a className="inline-link" href={linkHref} target="_blank" rel="noreferrer">
+            {linkLabel}
+          </a>
+        ) : null}
+      </div>
+    </article>
   );
 }
 
