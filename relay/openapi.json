@@ -62,6 +62,37 @@
           "200": { "description": "Requests returned" }
         }
       }
+    },
+    "/safety-feed": {
+      "get": {
+        "summary": "List current safety feed items",
+        "responses": {
+          "200": { "description": "Safety feed snapshot returned" }
+        }
+      },
+      "post": {
+        "summary": "Publish a safety feed item",
+        "responses": {
+          "201": { "description": "Safety feed item stored" }
+        }
+      }
+    },
+    "/safety-feed/{incidentId}": {
+      "get": {
+        "summary": "Get one safety feed item",
+        "parameters": [
+          {
+            "name": "incidentId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Safety feed item returned" },
+          "404": { "description": "Incident not found" }
+        }
+      }
     }
   }
 }

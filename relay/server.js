@@ -31,6 +31,20 @@ function createRelayServer({ store, notifier = async () => {}, now = () => new D
         return sendJson(res, 200, summary);
       }
 
+      if (req.method === "GET" && url.pathname === "/safety-feed") {
+        const items = await store.listSafetyFeed();
+        return sendJson(res, 200, buildSafetyFeedSnapshot(items));
+      }
+
+      if (req.method === "GET" && url.pathname.startsWith("/safety-feed/")) {
+        const incidentId = decodeURIComponent(url.pathname.split("/").pop());
+        const item = await store.getSafetyIncident(incidentId);
+        if (!item) {
+          return sendJson(res, 404, { error: "incident_not_found" });
+        }
+        return sendJson(res, 200, item);
+      }
+
       if (req.method === "GET" && url.pathname.startsWith("/status/")) {
         const requestId = url.pathname.split("/").pop();
         const request = await store.getRequest(requestId);
@@ -183,6 +197,13 @@ function createRelayServer({ store, notifier = async () => {}, now = () => new D
         });
       }
 
+      if (req.method === "POST" && url.pathname === "/safety-feed") {
+        const body = await readJson(req);
+        const item = validateSafetyFeedItem(body);
+        const stored = await store.upsertSafetyIncident(item);
+        return sendJson(res, 201, stored);
+      }
+
       return sendJson(res, 404, { error: "not_found" });
     } catch (error) {
       const status = error instanceof HttpError ? error.status : 500;
@@ -320,6 +341,16 @@ function round(value) {
   return Number((value * 100).toFixed(1));
 }
 
+function buildSafetyFeedSnapshot(items) {
+  return {
+    itemCount: items.length,
+    criticalCount: items.filter((item) => item.severity === "critical").length,
+    degradedCount: items.filter((item) => item.posture === "degraded").length,
+    blockedCount: items.filter((item) => item.blockedRoute).length,
+    items,
+  };
+}
+
 function validateQuoteRequest(body) {
   for (const field of ["inputMint", "outputMint", "inputAmount", "minOutputAmount"]) {
     if (!body[field]) {
@@ -334,6 +365,84 @@ function validateSolverQuote(body) {
       throw new HttpError(400, `missing_${field}`);
     }
   }
+}
+
+function validateSafetyFeedItem(body) {
+  const allowedProfiles = new Set([
+    "retail-user",
+    "treasury-operator",
+    "bot-executor",
+    "partner-app",
+  ]);
+  const allowedSeverities = new Set(["watch", "elevated", "critical"]);
+  const allowedPostures = new Set(["clear", "caution", "degraded", "blocked"]);
+  const allowedRecommendations = new Set([
+    "allow-best-route",
+    "prefer-safe-route",
+    "block-execution",
+  ]);
+
+  for (const field of [
+    "incidentId",
+    "bundleId",
+    "profile",
+    "severity",
+    "posture",
+    "executionRecommendation",
+    "headline",
+    "summary",
+  ]) {
+    if (!body[field]) {
+      throw new HttpError(400, `missing_${field}`);
+    }
+  }
+
+  if (typeof body.candidateOrderCount !== "number") {
+    throw new HttpError(400, "invalid_candidateOrderCount");
+  }
+
+  if (typeof body.blockedRoute !== "boolean") {
+    throw new HttpError(400, "invalid_blockedRoute");
+  }
+
+  if (!allowedProfiles.has(body.profile)) {
+    throw new HttpError(400, "invalid_profile");
+  }
+
+  if (!allowedSeverities.has(body.severity)) {
+    throw new HttpError(400, "invalid_severity");
+  }
+
+  if (!allowedPostures.has(body.posture)) {
+    throw new HttpError(400, "invalid_posture");
+  }
+
+  if (!allowedRecommendations.has(body.executionRecommendation)) {
+    throw new HttpError(400, "invalid_executionRecommendation");
+  }
+
+  for (const field of ["affectedTokens", "affectedPairs", "affectedVenues", "nextActions"]) {
+    if (!Array.isArray(body[field]) || !body[field].every((item) => typeof item === "string")) {
+      throw new HttpError(400, `invalid_${field}`);
+    }
+  }
+
+  return {
+    incidentId: String(body.incidentId),
+    bundleId: String(body.bundleId),
+    profile: body.profile,
+    severity: body.severity,
+    posture: body.posture,
+    executionRecommendation: body.executionRecommendation,
+    headline: String(body.headline),
+    summary: String(body.summary),
+    candidateOrderCount: body.candidateOrderCount,
+    blockedRoute: body.blockedRoute,
+    affectedTokens: [...body.affectedTokens],
+    affectedPairs: [...body.affectedPairs],
+    affectedVenues: [...body.affectedVenues],
+    nextActions: [...body.nextActions],
+  };
 }
 
 async function readJson(req) {
@@ -377,5 +486,6 @@ module.exports = {
   pickBestQuote,
   deriveSolverSummary,
   deriveAnalyticsSummary,
+  buildSafetyFeedSnapshot,
   HttpError,
 };

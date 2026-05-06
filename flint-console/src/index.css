@@ -545,6 +545,7 @@ body {
    PROTECT PANEL
    ================================ */
 .protect-panel { padding: 18px; }
+.action-plan-card { margin-bottom: 16px; }
 
 .protect-header {
   display: flex;
@@ -756,6 +757,111 @@ body {
 .proof-card p { font-size: 12px; color: var(--text-1); line-height: 1.45; }
 .proof-card a { display: inline-flex; align-items: center; gap: 4px; margin-top: 9px; font-size: 13px; color: var(--accent); font-weight: 500; }
 .proof-card a:hover { text-decoration: underline; }
+.upload-card input { margin-top: 10px; color: var(--text-1); }
+
+.info-card {
+  padding: 16px;
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  margin-bottom: 14px;
+}
+
+.info-card h2 {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-0);
+  margin: 6px 0 0;
+  line-height: 1.2;
+}
+
+.info-card p { font-size: 13px; color: var(--text-1); margin-top: 7px; line-height: 1.45; }
+
+.report-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.summary-pill {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border);
+}
+
+.summary-pill span {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+
+.summary-pill strong {
+  display: block;
+  margin-top: 6px;
+  font-size: 14px;
+  color: var(--text-0);
+  line-height: 1.25;
+}
+
+.report-copy {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.report-list {
+  margin-top: 14px;
+}
+
+.report-list strong {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 13px;
+  color: var(--text-0);
+}
+
+.report-list ul {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text-1);
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.reason-list.compact {
+  margin-top: 14px;
+}
+
+.compact-actions {
+  align-items: center;
+}
+
+.feed-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.feed-item-card {
+  padding: 14px;
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: border-color 120ms, background 120ms;
+}
+
+.feed-item-card:hover,
+.feed-item-card.active {
+  border-color: var(--border-2);
+  background: rgba(255, 255, 255, 0.04);
+}
 
 .logs-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 

@@ -8,5 +8,5 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["./flint-relay-client.ts"]
+  "include": ["./flint-relay-client.ts", "./flint-guard-safety-feed.ts"]
 }

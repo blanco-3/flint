@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "commonjs",
+    "moduleResolution": "Node",
+    "lib": ["ES2022", "DOM"],
+    "types": ["mocha", "node"],
+    "typeRoots": ["../node_modules/@types"],
+    "strict": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true
+  },
+  "include": ["./flint-guard-safety-feed.ts", "./flint-guard-safety-feed.test.ts"]
+}

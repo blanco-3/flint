@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import type { FormEvent } from "react";
+import type { ChangeEvent, FormEvent } from "react";
 
 import {
   buildCancelTransactions,
@@ -18,6 +18,12 @@ import {
   recommendedDemoPresetForScenario,
 } from "./lib/guard-demo";
 import {
+  ACTION_PROFILES,
+  defaultActionProfileForPreset,
+} from "./lib/guard-action";
+import { localeCopy, LOCALE_LABELS } from "./lib/guard-locale";
+import { deriveModeSessionState } from "./lib/guard-session";
+import {
   DEFAULT_SIGNAL_INPUTS,
   POLICY_PRESETS,
   canonicalMint,
@@ -25,7 +31,20 @@ import {
   canonicalVenue,
   policyCopy,
 } from "./lib/guard-policies";
+import { buildDeterministicAuditBundle } from "./lib/guard-audit";
+import {
+  fetchSafetyFeed,
+  publishSafetyFeedItem,
+} from "./lib/guard-feed-client";
+import {
+  isSafetyFeedSnapshot,
+  parseDeterministicAuditBundle,
+} from "./lib/guard-bundle";
+import { buildSafetyFeedItem, buildSafetyFeedSnapshot } from "./lib/guard-feed";
+import { buildIncidentPack, mergePolicyWithIncident } from "./lib/guard-incident";
 import { fetchPoolSnapshots } from "./lib/guard-market-data";
+import { buildDecisionReport, buildPanicActionPlan } from "./lib/guard-report";
+import { buildWatchSnapshot, buildWatchlistMatches } from "./lib/guard-watch";
 import {
   evaluateQuoteRisk,
   evaluateTriggerOrders,
@@ -41,15 +60,24 @@ import {
 } from "./lib/guard-wallet";
 import {
   type ActivityLogEntry,
+  type ActionProfileId,
+  type DecisionReport,
   type DemoScenarioId,
   type GuardDataMode,
   type GuardPolicyPreset,
+  type IncidentPack,
+  type LocaleCode,
   type OrderAssessment,
+  type PanicActionPlan,
   type QuoteComparison,
   type QuoteFormState,
   type RiskSignalInputs,
   type RouteRiskReason,
+  type DeterministicAuditBundle,
+  type SafetyFeedItem,
+  type SafetyFeedSnapshot,
   type TriggerOrder,
+  type WatchlistState,
 } from "./lib/guard-types";
 import type { Dispatch, SetStateAction } from "react";
 import { TOKEN_OPTIONS, tokenByMint, tokenChoices } from "./lib/token-options";
@@ -62,7 +90,10 @@ const STORAGE_KEYS = {
   safeMode: "flint-guard:safe-mode",
   panicMode: "flint-guard:panic-mode",
   signals: "flint-guard:signals",
+  actionProfile: "flint-guard:action-profile",
   activity: "flint-guard:activity",
+  locale: "flint-guard:locale",
+  watchlist: "flint-guard:watchlist",
 };
 
 const DEFAULT_FORM: QuoteFormState = {
@@ -73,9 +104,9 @@ const DEFAULT_FORM: QuoteFormState = {
 };
 
 export default function App() {
-  const [activePanel, setActivePanel] = useState<"trade" | "protect" | "activity" | "settings">(
-    "trade"
-  );
+  const [activePanel, setActivePanel] = useState<
+    "trade" | "protect" | "watch" | "activity" | "settings"
+  >("trade");
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [walletError, setWalletError] = useState<string | null>(null);
   const [dataMode, setDataMode] = usePersistentState<GuardDataMode>(
@@ -92,8 +123,17 @@ export default function App() {
   );
   const [safeMode, setSafeMode] = usePersistentState<boolean>(STORAGE_KEYS.safeMode, true);
   const [panicMode, setPanicMode] = usePersistentState<boolean>(STORAGE_KEYS.panicMode, false);
+  const [actionProfileId, setActionProfileId] = usePersistentState<ActionProfileId>(
+    STORAGE_KEYS.actionProfile,
+    defaultActionProfileForPreset("retail")
+  );
+  const [locale, setLocale] = usePersistentState<LocaleCode>(STORAGE_KEYS.locale, "en");
   const [signals, setSignals] = usePersistentState<RiskSignalInputs>(
     STORAGE_KEYS.signals,
+    DEFAULT_SIGNAL_INPUTS
+  );
+  const [watchlist, setWatchlist] = usePersistentState<WatchlistState>(
+    STORAGE_KEYS.watchlist,
     DEFAULT_SIGNAL_INPUTS
   );
   const [activityLog, setActivityLog] = usePersistentState<ActivityLogEntry[]>(
@@ -112,19 +152,24 @@ export default function App() {
   const [orderError, setOrderError] = useState<string | null>(null);
   const [isLoadingOrders, setIsLoadingOrders] = useState(false);
   const [isCancellingOrders, setIsCancellingOrders] = useState(false);
+  const [feedSnapshot, setFeedSnapshot] = useState<SafetyFeedSnapshot | null>(null);
+  const [feedError, setFeedError] = useState<string | null>(null);
+  const [isLoadingFeed, setIsLoadingFeed] = useState(false);
+  const [isPublishingFeed, setIsPublishingFeed] = useState(false);
+  const [importedBundle, setImportedBundle] = useState<DeterministicAuditBundle | null>(null);
+  const [selectedFeedItem, setSelectedFeedItem] = useState<SafetyFeedItem | null>(null);
   const [signalDrafts, setSignalDrafts] = useState({
     token: "",
     venue: "",
   });
+  const [watchDrafts, setWatchDrafts] = useState({
+    tokens: "",
+    pairs: "",
+    venues: "",
+  });
+  const copy = useMemo(() => localeCopy(locale), [locale]);
 
-  const policy = useMemo(() => {
-    const preset = policyCopy(POLICY_PRESETS[policyPreset]);
-    preset.flaggedTokens = dedupeStrings(preset.flaggedTokens.concat(signals.tokens));
-    preset.panicTokens = dedupeStrings(signals.tokens);
-    preset.panicPairs = dedupeStrings(signals.pairs);
-    preset.panicVenues = dedupeStrings(signals.venues);
-    return preset;
-  }, [policyPreset, signals]);
+  const basePolicy = useMemo(() => policyCopy(POLICY_PRESETS[policyPreset]), [policyPreset]);
 
   const currentPairKey = useMemo(
     () => canonicalPairKey(form.inputMint, form.outputMint),
@@ -145,6 +190,122 @@ export default function App() {
   }, []);
 
   const activeScenario = useMemo(() => demoScenarioById(demoScenario), [demoScenario]);
+
+  const incidentPack = useMemo<IncidentPack>(
+    () =>
+      buildIncidentPack({
+        dataMode,
+        demoScenario: activeScenario,
+        demoScenarioId: demoScenario,
+        policyPreset,
+        policy: basePolicy,
+        safeMode,
+        panicMode,
+        signals,
+        comparison,
+      }),
+    [
+      activeScenario,
+      basePolicy,
+      comparison,
+      dataMode,
+      demoScenario,
+      panicMode,
+      policyPreset,
+      safeMode,
+      signals,
+    ]
+  );
+
+  const policy = useMemo(
+    () => mergePolicyWithIncident(basePolicy, incidentPack),
+    [basePolicy, incidentPack]
+  );
+
+  const decisionReport = useMemo<DecisionReport>(
+    () =>
+      buildDecisionReport({
+        actionProfileId,
+        incidentPack,
+        comparison,
+        orderAssessments,
+      }),
+    [actionProfileId, incidentPack, comparison, orderAssessments]
+  );
+
+  const panicActionPlan = useMemo<PanicActionPlan>(
+    () =>
+      buildPanicActionPlan({
+        actionProfileId,
+        incidentPack,
+        comparison,
+        orderAssessments,
+      }),
+    [actionProfileId, incidentPack, comparison, orderAssessments]
+  );
+
+  const auditBundle = useMemo(
+    () =>
+      buildDeterministicAuditBundle({
+        incidentPack,
+        decisionReport,
+        panicActionPlan,
+        comparison,
+        ordersLoaded,
+        selectedOrderKeys,
+        activityLog,
+      }),
+    [
+      incidentPack,
+      decisionReport,
+      panicActionPlan,
+      comparison,
+      ordersLoaded,
+      selectedOrderKeys,
+      activityLog,
+    ]
+  );
+
+  const safetyFeedPreview = useMemo(
+    () =>
+      buildSafetyFeedSnapshot([
+        buildSafetyFeedItem({
+          bundle: auditBundle,
+          incidentPack,
+          decisionReport,
+          panicActionPlan,
+          profile: actionProfileId,
+        }),
+      ]),
+    [actionProfileId, auditBundle, decisionReport, incidentPack, panicActionPlan]
+  );
+
+  const currentFeedItem = useMemo(
+    () =>
+      buildSafetyFeedItem({
+        bundle: auditBundle,
+        incidentPack,
+        decisionReport,
+        panicActionPlan,
+        profile: actionProfileId,
+      }),
+    [actionProfileId, auditBundle, decisionReport, incidentPack, panicActionPlan]
+  );
+
+  const currentWatchItems = useMemo(
+    () => (((feedSnapshot?.items ?? []).length > 0 ? feedSnapshot?.items : [currentFeedItem]) ?? []),
+    [feedSnapshot, currentFeedItem]
+  );
+
+  const watchSnapshot = useMemo(
+    () => buildWatchSnapshot(currentWatchItems),
+    [currentWatchItems]
+  );
+
+  const watchlistMatches = useMemo(
+    () => buildWatchlistMatches(watchlist, currentWatchItems),
+    [watchlist, currentWatchItems]
+  );
 
   useEffect(() => {
     if (!orders.length) {
@@ -470,6 +631,89 @@ export default function App() {
     }
   }
 
+  async function handleRefreshSafetyFeed() {
+    setIsLoadingFeed(true);
+    setFeedError(null);
+    try {
+      const snapshot = await fetchSafetyFeed();
+      if (!isSafetyFeedSnapshot(snapshot)) {
+        throw new Error("invalid_safety_feed_snapshot");
+      }
+      setFeedSnapshot(snapshot);
+      appendLog(setActivityLog, {
+        title: "Safety feed refreshed",
+        detail: `${snapshot.itemCount} incident item(s) loaded from relay.`,
+        severity: "info",
+        kind: "activity",
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "safety_feed_refresh_failed";
+      setFeedError(message);
+      appendLog(setActivityLog, {
+        title: "Safety feed refresh failed",
+        detail: message,
+        severity: "warning",
+        kind: "incident",
+      });
+    } finally {
+      setIsLoadingFeed(false);
+    }
+  }
+
+  async function handlePublishSafetyFeed() {
+    setIsPublishingFeed(true);
+    setFeedError(null);
+    try {
+      await publishSafetyFeedItem(currentFeedItem);
+      appendLog(setActivityLog, {
+        title: "Incident published to safety feed",
+        detail: currentFeedItem.incidentId,
+        severity: "info",
+        kind: "activity",
+      });
+      await handleRefreshSafetyFeed();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "safety_feed_publish_failed";
+      setFeedError(message);
+      appendLog(setActivityLog, {
+        title: "Safety feed publish failed",
+        detail: message,
+        severity: "critical",
+        kind: "incident",
+      });
+    } finally {
+      setIsPublishingFeed(false);
+    }
+  }
+
+  async function handleImportBundle(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const raw = await file.text();
+      const parsed = parseDeterministicAuditBundle(JSON.parse(raw));
+      setImportedBundle(parsed);
+      appendLog(setActivityLog, {
+        title: "Incident bundle imported",
+        detail: parsed.bundleId,
+        severity: "info",
+        kind: "activity",
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "bundle_import_failed";
+      setFeedError(message);
+      appendLog(setActivityLog, {
+        title: "Incident bundle import failed",
+        detail: message,
+        severity: "critical",
+        kind: "incident",
+      });
+    } finally {
+      event.target.value = "";
+    }
+  }
+
   function toggleOrderSelection(orderKey: string) {
     setSelectedOrderKeys((current) =>
       current.includes(orderKey)
@@ -509,6 +753,23 @@ export default function App() {
     }));
   }
 
+  function addWatchlistItem(kind: keyof WatchlistState) {
+    const raw = watchDrafts[kind].trim();
+    if (!raw) return;
+    setWatchlist((current) => ({
+      ...current,
+      [kind]: dedupeStrings(current[kind].concat(raw)),
+    }));
+    setWatchDrafts((current) => ({ ...current, [kind]: "" }));
+  }
+
+  function removeWatchlistItem(kind: keyof WatchlistState, value: string) {
+    setWatchlist((current) => ({
+      ...current,
+      [kind]: current[kind].filter((item) => item !== value),
+    }));
+  }
+
   function flipPair() {
     setForm((current) => ({
       ...current,
@@ -529,12 +790,15 @@ export default function App() {
   function handleDataModeChange(nextMode: GuardDataMode) {
     setDataMode(nextMode);
     clearTransientState();
-    if (nextMode === "demo") {
-      const scenario = demoScenarioById(demoScenario);
-      setForm(scenario.form);
-      setSignals(scenario.signals);
-      setPolicyPreset(recommendedDemoPresetForScenario(demoScenario));
-    }
+    const nextState = deriveModeSessionState({
+      nextMode,
+      activeScenario,
+      defaultForm: DEFAULT_FORM,
+    });
+    setForm(nextState.form);
+    setSignals(nextState.signals);
+    setPolicyPreset(nextState.policyPreset);
+    setActionProfileId(nextState.actionProfileId);
   }
 
   function activateDemoScenario(nextScenario: DemoScenarioId) {
@@ -543,6 +807,9 @@ export default function App() {
     setForm(scenario.form);
     setSignals(scenario.signals);
     setPolicyPreset(recommendedDemoPresetForScenario(nextScenario));
+    setActionProfileId(
+      defaultActionProfileForPreset(recommendedDemoPresetForScenario(nextScenario))
+    );
     clearTransientState();
     appendLog(setActivityLog, {
       title: "Demo scenario armed",
@@ -573,19 +840,15 @@ export default function App() {
   }
 
   function handleExportBundle() {
-    const payload = {
-      exportedAt: new Date().toISOString(),
-      dataMode,
-      demoScenario: dataMode === "demo" ? demoScenario : null,
-      policyPreset,
-      policy,
-      signals,
-      form,
+    const payload = buildDeterministicAuditBundle({
+      incidentPack,
+      decisionReport,
+      panicActionPlan,
       comparison,
-      orders,
       ordersLoaded,
+      selectedOrderKeys,
       activityLog,
-    };
+    });
     const blob = new Blob([JSON.stringify(payload, null, 2)], {
       type: "application/json",
     });
@@ -610,21 +873,37 @@ export default function App() {
           <FlintMark />
           <div>
             <div className="eyebrow">Flint Guard</div>
-            <div className="brand-line">Safety-first execution on the Flint stack</div>
+            <div className="brand-line">{copy.brandLine}</div>
           </div>
         </div>
 
         <div className="nav-actions">
+          {(["en", "kr"] as LocaleCode[]).map((code) => (
+            <button
+              key={code}
+              type="button"
+              className={`chip-button ${locale === code ? "active" : ""}`}
+              onClick={() => setLocale(code)}
+            >
+              {LOCALE_LABELS[code]}
+            </button>
+          ))}
+          <button type="button" className="ghost-button" onClick={handleResetSession}>
+            {copy.nav.reset}
+          </button>
+          <button type="button" className="ghost-button" onClick={handleExportBundle}>
+            {copy.nav.export}
+          </button>
           {walletAddress ? (
             <div className="wallet-card">
               <span className="wallet-label">{shortenAddress(walletAddress)}</span>
               <button className="ghost-button" onClick={handleDisconnectWallet}>
-                Disconnect
+                {copy.nav.disconnect}
               </button>
             </div>
           ) : (
             <button className="primary-button" onClick={handleConnectWallet}>
-              Connect wallet
+              {copy.nav.connect}
             </button>
           )}
         </div>
@@ -632,41 +911,47 @@ export default function App() {
 
       <section className="hero-stage">
         <div className="stage-copy">
-          <h1>Trade safer.<br />Exit faster.</h1>
-          <p>Route compare, risk explain, and panic-order triage — powered by the Flint proof stack.</p>
+          <h1>{copy.heroTitle.split("\n").map((line, index) => (<span key={line}>{index ? <br /> : null}{line}</span>))}</h1>
+          <p>{copy.heroSubtitle}</p>
         </div>
 
         {dataMode === "demo" ? (
           <Banner tone="warning">
-            Seeded demo active — route execution and panic cancellation are simulated for judges.
+            {copy.seededBanner}
           </Banner>
         ) : null}
 
         {walletError ? <Banner tone="warning">{walletError}</Banner> : null}
         {comparisonError ? <Banner tone="critical">{comparisonError}</Banner> : null}
         {orderError ? <Banner tone="warning">{orderError}</Banner> : null}
+        {feedError ? <Banner tone="warning">{feedError}</Banner> : null}
 
         <section className={`trade-shell${activePanel !== "trade" ? " wide-panel" : ""}`}>
           <div className="shell-header">
             <div className="shell-tabs">
               <ShellTab
                 active={activePanel === "trade"}
-                label="Trade"
+                label={copy.tabs.trade}
                 onClick={() => setActivePanel("trade")}
               />
               <ShellTab
                 active={activePanel === "protect"}
-                label="Protect"
+                label={copy.tabs.protect}
                 onClick={() => setActivePanel("protect")}
               />
               <ShellTab
                 active={activePanel === "activity"}
-                label="Activity"
+                label={copy.tabs.activity}
                 onClick={() => setActivePanel("activity")}
               />
               <ShellTab
+                active={activePanel === "watch"}
+                label={copy.tabs.watch}
+                onClick={() => setActivePanel("watch")}
+              />
+              <ShellTab
                 active={activePanel === "settings"}
-                label="Settings"
+                label={copy.tabs.settings}
                 onClick={() => setActivePanel("settings")}
               />
             </div>
@@ -681,7 +966,7 @@ export default function App() {
           {activePanel === "trade" ? (
             <form className="trade-panel" onSubmit={handleEvaluateRoutes}>
               <div className="swap-box">
-                <div className="swap-box-label">You sell</div>
+                <div className="swap-box-label">{copy.trade.sell}</div>
                 <div className="swap-box-row">
                   <input
                     className="swap-amount-input"
@@ -711,7 +996,7 @@ export default function App() {
               </button>
 
               <div className="swap-box">
-                <div className="swap-box-label">You buy</div>
+                <div className="swap-box-label">{copy.trade.buy}</div>
                 <div className="swap-box-row">
                   <div className="swap-readout">
                     {comparison
@@ -739,7 +1024,7 @@ export default function App() {
                 </div>
                 {comparison ? (
                   <div className="swap-rate-row">
-                    <span className="protected-badge">⬡ Protected</span>
+                    <span className="protected-badge">⬡ {copy.trade.protected}</span>
                     <span>{policy.label} policy</span>
                   </div>
                 ) : null}
@@ -747,7 +1032,7 @@ export default function App() {
 
               {comparison ? (
                 <div className="receive-row">
-                  <span>You receive</span>
+                  <span>{copy.trade.receive}</span>
                   <strong>
                     {formatAtomic(
                       (comparison.executionTarget === "safe"
@@ -765,7 +1050,7 @@ export default function App() {
                   className="primary-button trade-submit"
                   onClick={handleConnectWallet}
                 >
-                  Connect wallet
+                  {copy.trade.connectToTrade}
                 </button>
               ) : comparison ? (
                 <button
@@ -778,7 +1063,7 @@ export default function App() {
                     )
                   }
                 >
-                  {isExecutingSwap ? "Confirming..." : "Swap"}
+                  {isExecutingSwap ? copy.trade.confirming : copy.trade.swap}
                 </button>
               ) : (
                 <button
@@ -786,7 +1071,7 @@ export default function App() {
                   className="primary-button trade-submit"
                   disabled={isEvaluating}
                 >
-                  {isEvaluating ? "Finding safe route..." : "Get quote"}
+                  {isEvaluating ? copy.trade.findingRoute : copy.trade.getQuote}
                 </button>
               )}
             </form>
@@ -796,21 +1081,21 @@ export default function App() {
             <div className="protect-panel">
               <div className="protect-header">
                 <div>
-                  <span className="panel-kicker">Panic desk</span>
-                  <h2>Collect risky orders and clear them before liquidity breaks</h2>
+                  <span className="panel-kicker">{copy.protect.kicker}</span>
+                  <h2>{copy.protect.title}</h2>
                 </div>
                 <button className="ghost-button" onClick={() => void handleLoadOrders()}>
                   {isLoadingOrders
-                    ? "Refreshing..."
+                    ? copy.watch.refreshing
                     : dataMode === "demo"
-                      ? "Load demo orders"
-                      : "Refresh open orders"}
+                      ? copy.protect.loadDemoOrders
+                      : copy.protect.refreshOrders}
                 </button>
               </div>
 
               <div className="panic-summary">
                 <MetricCard
-                  label="Wallet"
+                  label={copy.protect.wallet}
                   value={
                     dataMode === "demo"
                       ? "simulated"
@@ -819,17 +1104,19 @@ export default function App() {
                         : "none"
                   }
                 />
-                <MetricCard label="Open orders" value={String(orders.length)} />
+                <MetricCard label={copy.protect.openOrders} value={String(orders.length)} />
                 <MetricCard
-                  label="Cancel candidates"
+                  label={copy.protect.cancelCandidates}
                   value={String(orderAssessments.filter((item) => item.candidate).length)}
                 />
                 <MetricCard
-                  label="Selected"
+                  label={copy.protect.selected}
                   value={String(selectedOrderKeys.length)}
-                  detail={panicMode ? "panic mode ready" : "enable panic mode to arm"}
+                  detail={panicMode ? copy.protect.panicReady : copy.protect.panicDisabled}
                 />
               </div>
+
+              <ActionPlanCard plan={panicActionPlan} labels={copy.cards} />
 
               <div className="protect-config">
                 <ModeToggle
@@ -850,29 +1137,29 @@ export default function App() {
 
               <div className="signal-panel">
                 <div className="signal-head">
-                  <strong>Panic signals</strong>
+                  <strong>{copy.protect.panicSignals}</strong>
                   <button
                     className="ghost-button"
                     type="button"
                     onClick={addCurrentPairSignal}
                   >
-                    Flag current pair
+                    {copy.protect.flagCurrentPair}
                   </button>
                 </div>
                 <div className="signal-controls">
                   <InlineAdder
-                    label="Token mint"
+                    label={copy.protect.tokenMint}
                     value={signalDrafts.token}
-                    placeholder="Mint to hard-block"
+                    placeholder={copy.protect.tokenPlaceholder}
                     onChange={(value) =>
                       setSignalDrafts((current) => ({ ...current, token: value }))
                     }
                     onAdd={() => addSignal("token")}
                   />
                   <InlineAdder
-                    label="Venue"
+                    label={copy.protect.venue}
                     value={signalDrafts.venue}
-                    placeholder="venue label e.g. raydium"
+                    placeholder={copy.protect.venuePlaceholder}
                     onChange={(value) =>
                       setSignalDrafts((current) => ({ ...current, venue: value }))
                     }
@@ -880,17 +1167,17 @@ export default function App() {
                   />
                 </div>
                 <SignalChips
-                  title="Flagged tokens"
+                  title={copy.protect.flaggedTokens}
                   values={signals.tokens}
                   onRemove={(value) => removeSignal("tokens", value)}
                 />
                 <SignalChips
-                  title="Flagged pairs"
+                  title={copy.protect.flaggedPairs}
                   values={signals.pairs}
                   onRemove={(value) => removeSignal("pairs", value)}
                 />
                 <SignalChips
-                  title="Flagged venues"
+                  title={copy.protect.flaggedVenues}
                   values={signals.venues}
                   onRemove={(value) => removeSignal("venues", value)}
                 />
@@ -916,15 +1203,15 @@ export default function App() {
                   onClick={() => void handleCancelOrders()}
                 >
                   {isCancellingOrders
-                    ? "Submitting cancels..."
+                    ? copy.protect.submitting
                     : dataMode === "demo"
-                      ? "Simulate panic cancel"
-                      : "One-click panic cancel"}
+                      ? copy.protect.simulateCancel
+                      : copy.protect.oneClickCancel}
                 </button>
                 <p className="muted-copy">
                   {dataMode === "demo"
-                    ? "Seeded orders let you show the panic workflow even if no live trigger orders exist."
-                    : "Flint uses Jupiter Trigger cancel transactions, then asks the connected wallet to sign and submit them on mainnet."}
+                    ? copy.protect.demoHelper
+                    : copy.protect.liveHelper}
                 </p>
               </div>
             </div>
@@ -932,6 +1219,9 @@ export default function App() {
 
           {activePanel === "activity" ? (
             <div className="activity-panel">
+              <IncidentPackCard incidentPack={incidentPack} labels={copy.cards} />
+              <DecisionReportCard report={decisionReport} labels={copy.cards} />
+
               <section className="proof-strip">
                 <ProofCard
                   title="Flint kernel proof"
@@ -955,6 +1245,14 @@ export default function App() {
                   title="Submission posture"
                   detail="Use seeded demo first, then switch to live APIs to prove the route and wallet path."
                 />
+                <ProofCard
+                  title="Audit trail"
+                  detail={`Incident ${incidentPack.id.split(":").slice(0, 3).join(":")} is exportable as a deterministic bundle.`}
+                />
+                <ProofCard
+                  title="Safety feed preview"
+                  detail={`${safetyFeedPreview.itemCount} item · ${safetyFeedPreview.criticalCount} critical · profile ${actionProfileId}`}
+                />
               </section>
 
               <section className="logs-grid">
@@ -972,6 +1270,193 @@ export default function App() {
             </div>
           ) : null}
 
+          {activePanel === "watch" ? (
+            <div className="activity-panel">
+              <div className="protect-header">
+                <div>
+                  <span className="panel-kicker">{copy.watch.kicker}</span>
+                  <h2>{copy.watch.title}</h2>
+                  <p>{copy.watch.subtitle}</p>
+                </div>
+                <div className="nav-actions compact-actions">
+                  <button className="ghost-button" onClick={() => void handleRefreshSafetyFeed()}>
+                    {isLoadingFeed ? copy.watch.refreshing : copy.watch.refreshFeed}
+                  </button>
+                  <button
+                    className="primary-button"
+                    onClick={() => void handlePublishSafetyFeed()}
+                    disabled={isPublishingFeed}
+                  >
+                    {isPublishingFeed ? copy.watch.publishing : copy.watch.publish}
+                  </button>
+                </div>
+              </div>
+
+              <section className="hero-grid compact watch-snapshot-grid">
+                <MetricCard label={copy.watch.activeIncidents} value={String(watchSnapshot.activeIncidentCount)} />
+                <MetricCard label={copy.watch.criticalIncidents} value={String(watchSnapshot.criticalIncidentCount)} />
+                <MetricCard label={copy.watch.degradedIncidents} value={String(watchSnapshot.degradedIncidentCount)} />
+                <MetricCard label={copy.watch.blockedRoutes} value={String(watchSnapshot.blockedRouteCount)} />
+              </section>
+
+              <div className="proof-strip">
+                <ProofCard
+                  title={copy.watch.currentIncident}
+                  detail={`${incidentPack.name} · ${incidentPack.severity} · ${incidentPack.mode}`}
+                />
+                <ProofCard
+                  title={copy.watch.feedSnapshot}
+                  detail={
+                    feedSnapshot
+                      ? `${feedSnapshot.itemCount} items · ${feedSnapshot.criticalCount} critical`
+                      : copy.common.notLoaded
+                  }
+                />
+                <ProofCard
+                  title={copy.watch.currentProfile}
+                  detail={ACTION_PROFILES[actionProfileId].description}
+                />
+                <label className="proof-card upload-card">
+                  <strong>{copy.watch.importBundle}</strong>
+                  <p>{copy.watch.importBody}</p>
+                  <input type="file" accept="application/json" onChange={handleImportBundle} />
+                </label>
+              </div>
+
+              <section className="info-card">
+                <span className="panel-kicker">{copy.watch.watchlist}</span>
+                <p>{copy.watch.watchlistBody}</p>
+                <div className="signal-controls">
+                  <InlineAdder
+                    label={copy.watch.addToken}
+                    value={watchDrafts.tokens}
+                    placeholder={copy.protect.tokenPlaceholder}
+                    onChange={(value) =>
+                      setWatchDrafts((current) => ({ ...current, tokens: value }))
+                    }
+                    onAdd={() => addWatchlistItem("tokens")}
+                  />
+                  <InlineAdder
+                    label={copy.watch.addPair}
+                    value={watchDrafts.pairs}
+                    placeholder={copy.watch.pairPlaceholder}
+                    onChange={(value) =>
+                      setWatchDrafts((current) => ({ ...current, pairs: value }))
+                    }
+                    onAdd={() => addWatchlistItem("pairs")}
+                  />
+                </div>
+                <div className="signal-controls watch-second-row">
+                  <InlineAdder
+                    label={copy.watch.addVenue}
+                    value={watchDrafts.venues}
+                    placeholder={copy.protect.venuePlaceholder}
+                    onChange={(value) =>
+                      setWatchDrafts((current) => ({ ...current, venues: value }))
+                    }
+                    onAdd={() => addWatchlistItem("venues")}
+                  />
+                </div>
+                {watchlistMatches.length ? (
+                  <div className="feed-list">
+                    {watchlistMatches.map((match) => (
+                      <article className="feed-item-card" key={`${match.kind}:${match.value}`}>
+                        <div className="compact-route-head">
+                          <strong>{match.value}</strong>
+                          <span className={`status-tag ${match.highestSeverity === "critical" ? "alert" : match.highestSeverity === "elevated" ? "warning" : "safe"}`}>
+                            {match.highestSeverity ?? copy.common.none}
+                          </span>
+                        </div>
+                        <p>{match.overlapCount} {copy.watch.overlap}</p>
+                        <div className="chip-wrap">
+                          {match.kind === "token" ? (
+                            <button type="button" className="chip-button" onClick={() => removeWatchlistItem("tokens", match.value)}>× {match.value}</button>
+                          ) : null}
+                          {match.kind === "pair" ? (
+                            <button type="button" className="chip-button" onClick={() => removeWatchlistItem("pairs", match.value)}>× {match.value}</button>
+                          ) : null}
+                          {match.kind === "venue" ? (
+                            <button type="button" className="chip-button" onClick={() => removeWatchlistItem("venues", match.value)}>× {match.value}</button>
+                          ) : null}
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="empty-state">
+                    <strong>{copy.watch.noWatchlist}</strong>
+                    <p>{copy.watch.noWatchlistBody}</p>
+                  </div>
+                )}
+              </section>
+
+              {importedBundle ? (
+                <>
+                  <IncidentPackCard incidentPack={importedBundle.incidentPack} labels={copy.cards} />
+                  <DecisionReportCard report={importedBundle.decisionReport} labels={copy.cards} />
+                  <ActionPlanCard plan={importedBundle.panicActionPlan} labels={copy.cards} />
+                </>
+              ) : null}
+
+              <section className="info-card">
+                <span className="panel-kicker">{copy.watch.incidentBoard}</span>
+                <p>{copy.watch.title}</p>
+              </section>
+
+              <section className="feed-list">
+                {(feedSnapshot?.items ?? []).length ? (
+                  feedSnapshot!.items.map((item) => (
+                    <article
+                      className={`feed-item-card ${selectedFeedItem?.bundleId === item.bundleId ? "active" : ""}`}
+                      key={item.bundleId}
+                      onClick={() => setSelectedFeedItem(item)}
+                    >
+                      <div className="compact-route-head">
+                        <strong>{item.headline}</strong>
+                        <span className={`status-tag ${item.severity === "critical" ? "alert" : item.posture === "degraded" ? "warning" : "safe"}`}>
+                          {item.severity}
+                        </span>
+                      </div>
+                      <p>{item.summary}</p>
+                      <div className="report-grid">
+                        <SummaryPill label={copy.cards.profile} value={copy.profiles[item.profile]} />
+                        <SummaryPill label={copy.cards.execution} value={item.executionRecommendation} />
+                        <SummaryPill label={copy.cards.blockedRoute} value={item.blockedRoute ? "yes" : "no"} />
+                      </div>
+                    </article>
+                  ))
+                ) : (
+                  <div className="empty-state">
+                    <strong>{copy.watch.noFeed}</strong>
+                    <p>{copy.watch.noFeedBody}</p>
+                  </div>
+                )}
+              </section>
+
+              {selectedFeedItem ? (
+                <section className="info-card">
+                  <span className="panel-kicker">{copy.watch.selectedIncident}</span>
+                  <h2>{selectedFeedItem.headline}</h2>
+                  <p>{selectedFeedItem.summary}</p>
+                  <div className="report-grid">
+                    <SummaryPill label={copy.cards.profile} value={copy.profiles[selectedFeedItem.profile]} />
+                    <SummaryPill label={copy.cards.severity} value={selectedFeedItem.severity} />
+                    <SummaryPill label={copy.cards.posture} value={selectedFeedItem.posture} />
+                    <SummaryPill label={copy.cards.blockedRoute} value={selectedFeedItem.blockedRoute ? "yes" : "no"} />
+                  </div>
+                  <div className="report-list">
+                    <strong>{copy.cards.nextActions}</strong>
+                    <ul>
+                      {selectedFeedItem.nextActions.map((action) => (
+                        <li key={action}>{action}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </section>
+              ) : null}
+            </div>
+          ) : null}
+
           {activePanel === "settings" ? (
             <div className="settings-panel">
               <div className="hero-grid compact">
@@ -985,6 +1470,38 @@ export default function App() {
                 <MetricCard label="Panic order path" value="Jupiter Trigger V1" />
                 <MetricCard label="Policy" value={policy.label} detail={formatPolicySummary(policy)} />
                 <MetricCard label="Current panel" value={activePanel} />
+                <MetricCard label="Incident severity" value={incidentPack.severity} />
+                <MetricCard label={copy.settings.actionProfile} value={copy.profiles[actionProfileId]} />
+              </div>
+              <div className="signal-panel">
+                <div className="signal-head">
+                  <strong>Execution settings</strong>
+                </div>
+                <SlippageField
+                  value={form.slippageBps}
+                  onChange={(value) =>
+                    setForm((current) => ({ ...current, slippageBps: value }))
+                  }
+                />
+                <div className="preset-group action-profile-group">
+                  {(
+                    [
+                      "retail-user",
+                      "treasury-operator",
+                      "bot-executor",
+                      "partner-app",
+                    ] as ActionProfileId[]
+                  ).map((profileId) => (
+                    <button
+                      key={profileId}
+                      type="button"
+                      className={`chip-button ${actionProfileId === profileId ? "active" : ""}`}
+                      onClick={() => setActionProfileId(profileId)}
+                    >
+                      {ACTION_PROFILES[profileId].label}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           ) : null}
@@ -1089,6 +1606,127 @@ function ShellTab({
     >
       {label}
     </button>
+  );
+}
+
+function SummaryPill({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="summary-pill">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+function IncidentPackCard({
+  incidentPack,
+  labels,
+}: {
+  incidentPack: IncidentPack;
+  labels: {
+    incidentPack: string;
+    recommendedAction: string;
+    severity: string;
+    source: string;
+    mode: string;
+    policy: string;
+  };
+}) {
+  return (
+    <section className="info-card">
+      <span className="panel-kicker">{labels.incidentPack}</span>
+      <h2>{incidentPack.name}</h2>
+      <p>{incidentPack.summary}</p>
+      <div className="report-grid">
+        <SummaryPill label={labels.severity} value={incidentPack.severity} />
+        <SummaryPill label={labels.source} value={incidentPack.source} />
+        <SummaryPill label={labels.mode} value={incidentPack.mode} />
+        <SummaryPill label={labels.policy} value={incidentPack.policyPreset} />
+      </div>
+      <div className="report-list">
+        <strong>{labels.recommendedAction}</strong>
+        <ul>
+          <li>{incidentPack.recommendedAction}</li>
+        </ul>
+      </div>
+    </section>
+  );
+}
+
+function DecisionReportCard({
+  report,
+  labels,
+}: {
+  report: DecisionReport;
+  labels: {
+    decisionReport: string;
+    posture: string;
+    execution: string;
+    nextActions: string;
+  };
+}) {
+  return (
+    <section className="info-card">
+      <span className="panel-kicker">{labels.decisionReport}</span>
+      <h2>{report.headline}</h2>
+      <div className="report-grid">
+        <SummaryPill label={labels.posture} value={report.posture} />
+        <SummaryPill label={labels.execution} value={report.executionRecommendation} />
+      </div>
+      <div className="report-copy">
+        <p>{report.routeSummary}</p>
+        <p>{report.orderSummary}</p>
+      </div>
+      <div className="report-list">
+        <strong>{labels.nextActions}</strong>
+        <ul>
+          {report.nextActions.map((action) => (
+            <li key={action}>{action}</li>
+          ))}
+        </ul>
+      </div>
+      {report.reasons.length ? (
+        <div className="reason-list compact">
+          {report.reasons.slice(0, 4).map((reason) => (
+            <ReasonCard key={reason.id} reason={reason} />
+          ))}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function ActionPlanCard({
+  plan,
+  labels,
+}: {
+  plan: PanicActionPlan;
+  labels: {
+    panicActionPlan: string;
+    severity: string;
+    blockedRoute: string;
+    candidates: string;
+    nextSteps: string;
+  };
+}) {
+  return (
+    <section className="info-card action-plan-card">
+      <span className="panel-kicker">{labels.panicActionPlan}</span>
+      <h2>{plan.summary}</h2>
+      <div className="report-grid">
+        <SummaryPill label={labels.severity} value={plan.severity} />
+        <SummaryPill label={labels.blockedRoute} value={plan.blockedRoute ? "yes" : "no"} />
+        <SummaryPill label={labels.candidates} value={String(plan.candidateOrderKeys.length)} />
+      </div>
+      <div className="report-list">
+        <strong>{labels.nextSteps}</strong>
+        <ul>
+          {plan.nextSteps.map((step) => (
+            <li key={step}>{step}</li>
+          ))}
+        </ul>
+      </div>
+    </section>
   );
 }
 

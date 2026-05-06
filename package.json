@@ -7,6 +7,7 @@
     "guard:test": "yarn run ts-mocha -p flint-console/tsconfig.test.json flint-console/src/lib/*.test.ts",
     "relay:start": "node relay/index.js",
     "relay:test": "node --test relay/relay.test.js",
+    "sdk:guard:test": "yarn run ts-mocha -p sdk/tsconfig.test.json sdk/flint-guard-safety-feed.test.ts",
     "sdk:check": "./node_modules/.bin/tsc -p sdk/tsconfig.json",
     "demo:devnet:happy": "ANCHOR_PROVIDER_URL=https://api.devnet.solana.com ANCHOR_WALLET=$HOME/.config/solana/id.json node scripts/devnet-smoke.js happy",
     "demo:devnet:timeout": "ANCHOR_PROVIDER_URL=https://api.devnet.solana.com ANCHOR_WALLET=$HOME/.config/solana/id.json node scripts/devnet-smoke.js timeout",

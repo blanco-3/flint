@@ -5,7 +5,7 @@ class FileRelayStore {
   constructor(filePath) {
     this.filePath = filePath;
     this.dirPath = path.dirname(filePath);
-    this.state = { requests: {} };
+    this.state = { requests: {}, safetyFeed: {} };
     this._initialized = false;
   }
 
@@ -17,7 +17,8 @@ class FileRelayStore {
     await fs.promises.mkdir(this.dirPath, { recursive: true });
     try {
       const raw = await fs.promises.readFile(this.filePath, "utf8");
-      this.state = JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      this.state = normalizeStateShape(parsed);
     } catch (error) {
       if (error.code !== "ENOENT") {
         throw error;
@@ -64,6 +65,43 @@ class FileRelayStore {
     }
     return requests.filter((request) => request.status === status);
   }
+
+  async upsertSafetyIncident(item) {
+    if (!this.state.safetyFeed) {
+      this.state.safetyFeed = {};
+    }
+    this.state.safetyFeed[item.incidentId] = item;
+    await this.persist();
+    return structuredClone(item);
+  }
+
+  async getSafetyIncident(incidentId) {
+    if (!this.state.safetyFeed) {
+      this.state.safetyFeed = {};
+    }
+    const item = this.state.safetyFeed[incidentId];
+    return item ? structuredClone(item) : null;
+  }
+
+  async listSafetyFeed() {
+    if (!this.state.safetyFeed) {
+      this.state.safetyFeed = {};
+    }
+    return Object.values(this.state.safetyFeed)
+      .map((item) => structuredClone(item))
+      .sort((a, b) => a.incidentId.localeCompare(b.incidentId));
+  }
+}
+
+function normalizeStateShape(parsed) {
+  return {
+    requests:
+      parsed && parsed.requests && typeof parsed.requests === "object" ? parsed.requests : {},
+    safetyFeed:
+      parsed && parsed.safetyFeed && typeof parsed.safetyFeed === "object"
+        ? parsed.safetyFeed
+        : {},
+  };
 }
 
 function defaultStateFile() {

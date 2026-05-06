@@ -6,6 +6,7 @@ const { createRelayServer } = require("./server");
 
 function createMemoryStore() {
   const requests = new Map();
+  const safetyFeed = new Map();
 
   return {
     async createRequest(request) {
@@ -25,6 +26,16 @@ function createMemoryStore() {
     async listRequests({ status } = {}) {
       const all = [...requests.values()].map((item) => structuredClone(item));
       return status ? all.filter((item) => item.status === status) : all;
+    },
+    async upsertSafetyIncident(item) {
+      safetyFeed.set(item.incidentId, structuredClone(item));
+      return structuredClone(item);
+    },
+    async getSafetyIncident(incidentId) {
+      return safetyFeed.has(incidentId) ? structuredClone(safetyFeed.get(incidentId)) : null;
+    },
+    async listSafetyFeed() {
+      return [...safetyFeed.values()].map((item) => structuredClone(item));
     },
   };
 }
@@ -118,6 +129,137 @@ test("relay lifecycle creates, quotes, selects, and reports status", async () =>
   const analytics = await analyticsResponse.json();
   assert.equal(analytics.totalRequests, 1);
   assert.equal(analytics.quoteCount, 2);
+
+  const publishFeedResponse = await fetch(`${base}/safety-feed`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      incidentId: "incident-1",
+      bundleId: "bundle-1",
+      profile: "retail-user",
+      severity: "critical",
+      posture: "degraded",
+      executionRecommendation: "prefer-safe-route",
+      headline: "Use the safer route",
+      summary: "Critical venue panic",
+      candidateOrderCount: 1,
+      blockedRoute: false,
+      affectedTokens: ["token-a"],
+      affectedPairs: ["pair-a"],
+      affectedVenues: ["venue-a"],
+      nextActions: ["Use safer route"],
+    }),
+  });
+  assert.equal(publishFeedResponse.status, 201);
+
+  const feedResponse = await fetch(`${base}/safety-feed`);
+  assert.equal(feedResponse.status, 200);
+  const feed = await feedResponse.json();
+  assert.equal(feed.itemCount, 1);
+  assert.equal(feed.criticalCount, 1);
+
+  const incidentResponse = await fetch(`${base}/safety-feed/incident-1`);
+  assert.equal(incidentResponse.status, 200);
+  const incident = await incidentResponse.json();
+  assert.equal(incident.bundleId, "bundle-1");
+
+  server.close();
+});
+
+test("relay safety feed rejects invalid enum values", async () => {
+  const store = createMemoryStore();
+  const server = createRelayServer({
+    store,
+    notifier: async () => {},
+  });
+
+  server.listen(0);
+  await once(server, "listening");
+  const { port } = server.address();
+  const base = `http://127.0.0.1:${port}`;
+
+  const response = await fetch(`${base}/safety-feed`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      incidentId: "incident-x",
+      bundleId: "bundle-x",
+      profile: "invalid-profile",
+      severity: "critical",
+      posture: "degraded",
+      executionRecommendation: "prefer-safe-route",
+      headline: "Bad payload",
+      summary: "Should fail",
+      candidateOrderCount: 0,
+      blockedRoute: false,
+      affectedTokens: [],
+      affectedPairs: [],
+      affectedVenues: [],
+      nextActions: [],
+    }),
+  });
+
+  assert.equal(response.status, 400);
+  const payload = await response.json();
+  assert.equal(payload.error, "invalid_profile");
+
+  server.close();
+});
+
+test("relay safety feed upserts by incident id", async () => {
+  const store = createMemoryStore();
+  const server = createRelayServer({
+    store,
+    notifier: async () => {},
+  });
+
+  server.listen(0);
+  await once(server, "listening");
+  const { port } = server.address();
+  const base = `http://127.0.0.1:${port}`;
+
+  const payload = {
+    incidentId: "incident-upsert",
+    bundleId: "bundle-1",
+    profile: "retail-user",
+    severity: "watch",
+    posture: "clear",
+    executionRecommendation: "allow-best-route",
+    headline: "Baseline watch",
+    summary: "Initial state",
+    candidateOrderCount: 0,
+    blockedRoute: false,
+    affectedTokens: [],
+    affectedPairs: [],
+    affectedVenues: [],
+    nextActions: [],
+  };
+
+  await fetch(`${base}/safety-feed`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  await fetch(`${base}/safety-feed`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      ...payload,
+      bundleId: "bundle-2",
+      severity: "critical",
+      summary: "Updated state",
+    }),
+  });
+
+  const incidentResponse = await fetch(`${base}/safety-feed/incident-upsert`);
+  const incident = await incidentResponse.json();
+  assert.equal(incident.bundleId, "bundle-2");
+  assert.equal(incident.severity, "critical");
+
+  const feedResponse = await fetch(`${base}/safety-feed`);
+  const feed = await feedResponse.json();
+  assert.equal(feed.itemCount, 1);
 
   server.close();
 });

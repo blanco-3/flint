@@ -1,6 +1,7 @@
 export type GuardPolicyPreset = "retail" | "treasury";
 export type GuardDataMode = "live" | "demo";
 export type DemoScenarioId = "fresh-pool-rug" | "venue-panic" | "unknown-metadata";
+export type LocaleCode = "en" | "kr";
 
 export type QuoteFormState = {
   inputMint: string;
@@ -14,6 +15,21 @@ export type RiskSignalInputs = {
   pairs: string[];
   venues: string[];
 };
+
+export type WatchlistState = {
+  tokens: string[];
+  pairs: string[];
+  venues: string[];
+};
+
+export type IncidentSeverity = "watch" | "elevated" | "critical";
+export type IncidentSource = "manual" | "demo" | "live-session";
+export type DecisionPosture = "clear" | "caution" | "degraded" | "blocked";
+export type ActionProfileId =
+  | "retail-user"
+  | "treasury-operator"
+  | "bot-executor"
+  | "partner-app";
 
 export type RiskPolicy = {
   id: GuardPolicyPreset;
@@ -147,4 +163,99 @@ export type DemoScenario = {
   summary: string;
   form: QuoteFormState;
   signals: RiskSignalInputs;
+};
+
+export type IncidentPack = {
+  id: string;
+  name: string;
+  source: IncidentSource;
+  severity: IncidentSeverity;
+  createdAt: string;
+  summary: string;
+  recommendedAction: string;
+  mode: GuardDataMode;
+  scenarioId: DemoScenarioId | null;
+  policyPreset: GuardPolicyPreset;
+  safeMode: boolean;
+  panicMode: boolean;
+  affectedTokens: string[];
+  affectedPairs: string[];
+  affectedVenues: string[];
+};
+
+export type DecisionReport = {
+  headline: string;
+  posture: DecisionPosture;
+  executionRecommendation: "allow-best-route" | "prefer-safe-route" | "block-execution";
+  routeSummary: string;
+  orderSummary: string;
+  reasons: RouteRiskReason[];
+  nextActions: string[];
+};
+
+export type PanicActionPlan = {
+  severity: IncidentSeverity;
+  summary: string;
+  candidateOrderKeys: string[];
+  blockedRoute: boolean;
+  nextSteps: string[];
+};
+
+export type DeterministicAuditBundle = {
+  version: "1";
+  bundleId: string;
+  incidentPack: IncidentPack;
+  decisionReport: DecisionReport;
+  panicActionPlan: PanicActionPlan;
+  comparison: QuoteComparison | null;
+  ordersLoaded: boolean;
+  selectedOrderKeys: string[];
+  activityLog: ActivityLogEntry[];
+};
+
+export type ActionProfile = {
+  id: ActionProfileId;
+  label: string;
+  description: string;
+  executionBias: "user-safe" | "operator-review" | "system-reject";
+};
+
+export type SafetyFeedItem = {
+  incidentId: string;
+  bundleId: string;
+  profile: ActionProfileId;
+  severity: IncidentSeverity;
+  posture: DecisionPosture;
+  executionRecommendation: DecisionReport["executionRecommendation"];
+  headline: string;
+  summary: string;
+  candidateOrderCount: number;
+  blockedRoute: boolean;
+  affectedTokens: string[];
+  affectedPairs: string[];
+  affectedVenues: string[];
+  nextActions: string[];
+};
+
+export type SafetyFeedSnapshot = {
+  itemCount: number;
+  criticalCount: number;
+  degradedCount: number;
+  blockedCount: number;
+  items: SafetyFeedItem[];
+};
+
+export type WatchSnapshot = {
+  activeIncidentCount: number;
+  criticalIncidentCount: number;
+  degradedIncidentCount: number;
+  blockedRouteCount: number;
+};
+
+export type WatchlistMatch = {
+  kind: "token" | "pair" | "venue";
+  value: string;
+  overlapCount: number;
+  highestSeverity: IncidentSeverity | null;
+  overlappingIncidentIds: string[];
 };
