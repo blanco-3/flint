@@ -339,33 +339,49 @@ body {
    TRADE PANEL — CoW Swap format
    ================================ */
 .trade-panel {
-  padding: 6px 8px 12px;
+  padding: 8px 8px 10px;
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 
-/* Sell / Buy boxes */
+/* ── Swap box (sell / buy) ── */
 .swap-box {
-  padding: 16px;
+  padding: 14px 16px 16px;
   border-radius: 16px;
   background: var(--input-bg);
-  border: 1px solid transparent;
-  transition: border-color 140ms;
+  border: 1.5px solid transparent;
+  transition: border-color 150ms;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .swap-box:focus-within {
-  border-color: var(--border);
+  border-color: rgba(224, 96, 24, 0.28);
+}
+
+/* Top row: label (left) + balance (right) */
+.swap-box-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .swap-box-label {
   font-size: 13px;
   font-weight: 500;
   color: var(--text-2);
-  margin-bottom: 8px;
 }
 
-.swap-box-row {
+.swap-balance {
+  font-size: 12px;
+  color: var(--text-2);
+  cursor: default;
+}
+
+/* Main row: big amount + token pill */
+.swap-box-main {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -374,62 +390,68 @@ body {
 .swap-amount-input {
   flex: 1;
   min-width: 0;
-  font-size: clamp(24px, 4vw, 38px);
-  font-weight: 600;
-  letter-spacing: -0.03em;
+  font-size: clamp(22px, 5vw, 34px);
+  font-weight: 500;
+  letter-spacing: -0.02em;
   color: var(--text-0);
-  line-height: 1;
+  line-height: 1.1;
   background: transparent;
   border: none;
   outline: none;
   padding: 0;
 }
 
-.swap-amount-input::placeholder {
-  color: var(--text-2);
-}
+.swap-amount-input::placeholder { color: var(--text-2); }
 
 .swap-readout {
   flex: 1;
   min-width: 0;
-  font-size: clamp(24px, 4vw, 38px);
-  font-weight: 600;
-  letter-spacing: -0.03em;
+  font-size: clamp(22px, 5vw, 34px);
+  font-weight: 500;
+  letter-spacing: -0.02em;
   color: var(--text-1);
-  line-height: 1;
+  line-height: 1.1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-/* Token selector pill */
-.swap-token-select {
+.swap-readout.empty { color: var(--text-2); }
+
+/* Token pill — custom <select> */
+.token-pill {
   flex: none;
-  min-width: 100px;
-  padding: 10px 14px;
+  appearance: none;
+  -webkit-appearance: none;
+  padding: 9px 32px 9px 14px;
   border-radius: 999px;
-  border: 1px solid var(--border);
-  background: var(--card-2);
+  border: 1px solid var(--border-2);
+  background-color: var(--card-2);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none'%3E%3Cpath d='M2 4l4 4 4-4' stroke='%23a07050' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 12px;
   color: var(--text-0);
   font-size: 15px;
   font-weight: 700;
   cursor: pointer;
-  transition: border-color 120ms;
-  appearance: auto;
-  -webkit-appearance: auto;
+  transition: border-color 120ms, background-color 120ms;
+  white-space: nowrap;
+  min-width: 86px;
 }
 
-.swap-token-select:hover {
-  border-color: var(--border-2);
-}
+.token-pill:hover { border-color: var(--accent); }
+.token-pill:focus { outline: none; border-color: var(--accent); }
 
-/* Rate row inside buy box */
+/* Rate row inside buy box (visible after quote) */
 .swap-rate-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-top: 10px;
   padding-top: 10px;
   border-top: 1px solid var(--border);
-  font-size: 13px;
-  color: var(--text-1);
+  font-size: 12px;
+  color: var(--text-2);
   gap: 8px;
 }
 
@@ -439,69 +461,94 @@ body {
   gap: 4px;
   padding: 3px 9px;
   border-radius: 999px;
-  background: rgba(224, 96, 24, 0.14);
-  border: 1px solid rgba(224, 96, 24, 0.24);
+  background: rgba(224, 96, 24, 0.12);
+  border: 1px solid rgba(224, 96, 24, 0.22);
   color: var(--accent);
   font-size: 11px;
   font-weight: 700;
   white-space: nowrap;
 }
 
-/* Swap arrow between boxes */
+/* ── Switch orb ── */
 .switch-orb {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 38px;
+  height: 38px;
   align-self: center;
-  border-radius: 10px;
-  border: 1px solid var(--border);
-  background: var(--card-2);
+  border-radius: 12px;
+  border: 1.5px solid var(--border);
+  background: var(--card);
   color: var(--text-1);
-  font-size: 18px;
   cursor: pointer;
-  transition: background 110ms, border-color 110ms, color 110ms;
-  margin: 2px auto;
+  transition: background 120ms, border-color 120ms, color 120ms, transform 200ms;
+  margin: -2px auto;
   z-index: 1;
+  position: relative;
 }
 
 .switch-orb:hover {
-  background: var(--surface);
-  border-color: var(--border-2);
+  background: var(--card-2);
+  border-color: var(--accent);
   color: var(--accent);
+  transform: rotate(180deg);
 }
 
-/* Receive row (between buy box and button) */
+/* ── Slippage row ── */
+.slippage-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 4px 2px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.slippage-select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding: 3px 22px 3px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background-color: transparent;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none'%3E%3Cpath d='M2 4l4 4 4-4' stroke='%23a07050' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 6px center;
+  background-size: 10px;
+  color: var(--text-1);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.slippage-select:focus { outline: none; }
+
+/* ── Receive row ── */
 .receive-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 16px;
+  padding: 6px 4px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.receive-row strong {
   font-size: 14px;
-  color: var(--text-1);
-}
-
-.receive-row .receive-label {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.receive-row .receive-value {
-  font-size: 16px;
   font-weight: 700;
   color: var(--text-0);
 }
 
-/* CTA button */
+/* ── CTA button ── */
 .trade-submit {
   width: 100%;
   min-height: 56px;
   border-radius: 16px;
-  font-size: 17px;
-  font-weight: 800;
-  margin-top: 6px;
+  font-size: 16px;
+  font-weight: 700;
+  margin-top: 4px;
+  letter-spacing: 0.01em;
 }
 
 /* ===================================

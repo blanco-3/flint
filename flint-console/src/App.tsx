@@ -965,40 +965,49 @@ export default function App() {
 
           {activePanel === "trade" ? (
             <form className="trade-panel" onSubmit={handleEvaluateRoutes}>
+
+              {/* ── Sell box ── */}
               <div className="swap-box">
-                <div className="swap-box-label">{copy.trade.sell}</div>
-                <div className="swap-box-row">
+                <div className="swap-box-top">
+                  <span className="swap-box-label">{copy.trade.sell}</span>
+                  <span className="swap-balance">Balance: —</span>
+                </div>
+                <div className="swap-box-main">
                   <input
                     className="swap-amount-input"
+                    placeholder="0"
                     value={form.amount}
                     onChange={(event) =>
                       setForm((current) => ({ ...current, amount: event.target.value }))
                     }
                   />
                   <select
-                    className="swap-token-select"
+                    className="token-pill"
                     value={form.inputMint}
                     onChange={(event) =>
                       setForm((current) => ({ ...current, inputMint: event.target.value }))
                     }
                   >
                     {tokenChoices().map((token) => (
-                      <option key={token.mint} value={token.mint}>
-                        {token.symbol}
-                      </option>
+                      <option key={token.mint} value={token.mint}>{token.symbol}</option>
                     ))}
                   </select>
                 </div>
               </div>
 
-              <button type="button" className="switch-orb" onClick={flipPair}>
-                ⇅
+              {/* ── Switch orb ── */}
+              <button type="button" className="switch-orb" onClick={flipPair} aria-label="Switch tokens">
+                <SwitchArrows />
               </button>
 
+              {/* ── Buy box ── */}
               <div className="swap-box">
-                <div className="swap-box-label">{copy.trade.buy}</div>
-                <div className="swap-box-row">
-                  <div className="swap-readout">
+                <div className="swap-box-top">
+                  <span className="swap-box-label">{copy.trade.buy}</span>
+                  <span className="swap-balance">Balance: —</span>
+                </div>
+                <div className="swap-box-main">
+                  <div className={`swap-readout${comparison ? "" : " empty"}`}>
                     {comparison
                       ? formatAtomic(
                           (comparison.executionTarget === "safe"
@@ -1006,30 +1015,45 @@ export default function App() {
                             : comparison.baseQuote.outAmount) ?? "0",
                           form.outputMint
                         )
-                      : "—"}
+                      : "0"}
                   </div>
                   <select
-                    className="swap-token-select"
+                    className="token-pill"
                     value={form.outputMint}
                     onChange={(event) =>
                       setForm((current) => ({ ...current, outputMint: event.target.value }))
                     }
                   >
                     {tokenChoices().map((token) => (
-                      <option key={token.mint} value={token.mint}>
-                        {token.symbol}
-                      </option>
+                      <option key={token.mint} value={token.mint}>{token.symbol}</option>
                     ))}
                   </select>
                 </div>
                 {comparison ? (
                   <div className="swap-rate-row">
                     <span className="protected-badge">⬡ {copy.trade.protected}</span>
-                    <span>{policy.label} policy</span>
+                    <span>{policy.label} policy · {form.slippageBps / 100}% slippage</span>
                   </div>
                 ) : null}
               </div>
 
+              {/* ── Slippage row ── */}
+              <div className="slippage-row">
+                <span>Max slippage</span>
+                <select
+                  className="slippage-select"
+                  value={form.slippageBps}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, slippageBps: Number(event.target.value) }))
+                  }
+                >
+                  {[30, 50, 75, 100, 150].map((v) => (
+                    <option key={v} value={v}>{v / 100}%</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* ── Receive row (after quote) ── */}
               {comparison ? (
                 <div className="receive-row">
                   <span>{copy.trade.receive}</span>
@@ -1044,6 +1068,7 @@ export default function App() {
                 </div>
               ) : null}
 
+              {/* ── CTA ── */}
               {!walletAddress && dataMode !== "demo" ? (
                 <button
                   type="button"
@@ -1516,27 +1541,34 @@ export default function App() {
 function Rocky() {
   return (
     <svg className="flint-mark" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      {/* Boulder body */}
-      <ellipse cx="21" cy="26" rx="16" ry="13" fill="#7a3010"/>
-      {/* Rocky top ridge */}
-      <path d="M5 26 Q8 19 13 21 Q16 15 19 18 Q21 13 23 16 Q26 12 29 15 Q32 18 35 22 Q37 25 37 26" fill="#8a3814"/>
-      {/* Highlight shimmer */}
-      <ellipse cx="15" cy="20" rx="6" ry="3.5" fill="#a84e20" opacity="0.5"/>
+      {/* Main boulder — organic rounded shape */}
+      <path d="M7 24 Q5 14 10 9 Q14 4 20 4 Q26 4 30 9 Q35 14 33 24 Q32 33 20 34 Q8 33 7 24Z" fill="#7c3410"/>
+      {/* Top face highlight */}
+      <path d="M10 9 Q14 4 20 4 Q26 4 30 9 Q33 13 32 19 Q26 12 20 12 Q14 12 8 19 Q7 13 10 9Z" fill="#9b4520" opacity="0.65"/>
+      {/* Subtle crack */}
+      <path d="M19 10 L18 16 L20 19" stroke="#4a1a06" strokeWidth="1" fill="none" strokeLinecap="round" opacity="0.35"/>
       {/* Left eye */}
-      <circle cx="15" cy="26" r="2.5" fill="#1a0804"/>
-      <circle cx="15.9" cy="25.1" r="0.9" fill="white" opacity="0.85"/>
+      <circle cx="14" cy="22" r="3" fill="#150604"/>
+      <circle cx="15.3" cy="20.7" r="1.1" fill="white" opacity="0.9"/>
       {/* Right eye */}
-      <circle cx="26" cy="26" r="2.5" fill="#1a0804"/>
-      <circle cx="26.9" cy="25.1" r="0.9" fill="white" opacity="0.85"/>
+      <circle cx="26" cy="22" r="3" fill="#150604"/>
+      <circle cx="27.3" cy="20.7" r="1.1" fill="white" opacity="0.9"/>
       {/* Smile */}
-      <path d="M14 31 Q20.5 36 27 31" stroke="#1a0804" strokeWidth="1.8" strokeLinecap="round" fill="none"/>
-      {/* Crack detail */}
-      <path d="M21 17 L20 22 L22 24" stroke="#4a1606" strokeWidth="0.9" strokeLinecap="round" opacity="0.45"/>
-      {/* Sparks */}
-      <path d="M30 5 L31.8 1.5 L30.5 4.5 L28 3 Z" fill="#f09030"/>
-      <path d="M8 7 L9.2 4 L8.5 6.5 L6.5 5 Z" fill="#f09030"/>
-      <circle cx="33" cy="9" r="1.4" fill="#ffbf40" opacity="0.8"/>
-      <circle cx="7" cy="11" r="1" fill="#ffbf40" opacity="0.6"/>
+      <path d="M14 28 Q20 33 26 28" stroke="#150604" strokeWidth="2" fill="none" strokeLinecap="round"/>
+      {/* Spark top-right */}
+      <path d="M29 4 L30.5 1 L29.5 3.5 L27.5 2.5Z" fill="#f09020"/>
+      <circle cx="32" cy="5" r="1.6" fill="#ffbe38" opacity="0.85"/>
+      <line x1="32" y1="3" x2="34" y2="1.5" stroke="#ffbe38" strokeWidth="0.9" strokeLinecap="round" opacity="0.6"/>
+      <line x1="33.5" y1="6" x2="35.5" y2="6" stroke="#ffbe38" strokeWidth="0.9" strokeLinecap="round" opacity="0.5"/>
+    </svg>
+  );
+}
+
+function SwitchArrows() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M5.5 3v10M5.5 13l-2.5-2.5M5.5 13l2.5-2.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M12.5 15V5M12.5 5l-2.5 2.5M12.5 5l2.5 2.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
     </svg>
   );
 }
