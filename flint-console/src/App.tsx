@@ -956,11 +956,13 @@ export default function App() {
               />
             </div>
 
-            <div className="shell-status">
-              <span>Kernel {shortenAddress(devnetDeploy.programId)}</span>
-              <span>{policy.label}</span>
-              <span>{formatPolicySummary(policy)}</span>
-            </div>
+            {activePanel !== "trade" ? (
+              <div className="shell-status">
+                <span>Kernel {shortenAddress(devnetDeploy.programId)}</span>
+                <span>{policy.label}</span>
+                <span>{formatPolicySummary(policy)}</span>
+              </div>
+            ) : null}
           </div>
 
           {activePanel === "trade" ? (
@@ -1540,26 +1542,16 @@ export default function App() {
 
 function Rocky() {
   return (
-    <svg className="flint-mark" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      {/* Main boulder — organic rounded shape */}
-      <path d="M7 24 Q5 14 10 9 Q14 4 20 4 Q26 4 30 9 Q35 14 33 24 Q32 33 20 34 Q8 33 7 24Z" fill="#7c3410"/>
-      {/* Top face highlight */}
-      <path d="M10 9 Q14 4 20 4 Q26 4 30 9 Q33 13 32 19 Q26 12 20 12 Q14 12 8 19 Q7 13 10 9Z" fill="#9b4520" opacity="0.65"/>
-      {/* Subtle crack */}
-      <path d="M19 10 L18 16 L20 19" stroke="#4a1a06" strokeWidth="1" fill="none" strokeLinecap="round" opacity="0.35"/>
-      {/* Left eye */}
-      <circle cx="14" cy="22" r="3" fill="#150604"/>
-      <circle cx="15.3" cy="20.7" r="1.1" fill="white" opacity="0.9"/>
-      {/* Right eye */}
-      <circle cx="26" cy="22" r="3" fill="#150604"/>
-      <circle cx="27.3" cy="20.7" r="1.1" fill="white" opacity="0.9"/>
+    <svg className="flint-mark" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      {/* Boulder silhouette — flat, clean, like CoW's cow */}
+      <path d="M4 22 Q3 11 9 7 Q13 3 18 3 Q23 3 27 7 Q33 11 32 22 Q31 30 18 31 Q5 30 4 22Z" fill="#e06018"/>
+      {/* Eyes — simple white dots */}
+      <circle cx="13" cy="19" r="2.8" fill="white"/>
+      <circle cx="23" cy="19" r="2.8" fill="white"/>
+      <circle cx="13" cy="19" r="1.4" fill="#1a0804"/>
+      <circle cx="23" cy="19" r="1.4" fill="#1a0804"/>
       {/* Smile */}
-      <path d="M14 28 Q20 33 26 28" stroke="#150604" strokeWidth="2" fill="none" strokeLinecap="round"/>
-      {/* Spark top-right */}
-      <path d="M29 4 L30.5 1 L29.5 3.5 L27.5 2.5Z" fill="#f09020"/>
-      <circle cx="32" cy="5" r="1.6" fill="#ffbe38" opacity="0.85"/>
-      <line x1="32" y1="3" x2="34" y2="1.5" stroke="#ffbe38" strokeWidth="0.9" strokeLinecap="round" opacity="0.6"/>
-      <line x1="33.5" y1="6" x2="35.5" y2="6" stroke="#ffbe38" strokeWidth="0.9" strokeLinecap="round" opacity="0.5"/>
+      <path d="M13 25 Q18 29 23 25" stroke="white" strokeWidth="1.8" fill="none" strokeLinecap="round"/>
     </svg>
   );
 }
