@@ -877,6 +877,14 @@ export default function App() {
           </div>
         </div>
 
+        <nav className="nav-center-tabs">
+          <ShellTab active={activePanel === "trade"} label={copy.tabs.trade} onClick={() => setActivePanel("trade")} />
+          <ShellTab active={activePanel === "protect"} label={copy.tabs.protect} onClick={() => setActivePanel("protect")} />
+          <ShellTab active={activePanel === "activity"} label={copy.tabs.activity} onClick={() => setActivePanel("activity")} />
+          <ShellTab active={activePanel === "watch"} label={copy.tabs.watch} onClick={() => setActivePanel("watch")} />
+          <ShellTab active={activePanel === "settings"} label={copy.tabs.settings} onClick={() => setActivePanel("settings")} />
+        </nav>
+
         <div className="nav-actions">
           {(["en", "kr"] as LocaleCode[]).map((code) => (
             <button
@@ -927,43 +935,15 @@ export default function App() {
         {feedError ? <Banner tone="warning">{feedError}</Banner> : null}
 
         <section className={`trade-shell${activePanel !== "trade" ? " wide-panel" : ""}`}>
-          <div className="shell-header">
-            <div className="shell-tabs">
-              <ShellTab
-                active={activePanel === "trade"}
-                label={copy.tabs.trade}
-                onClick={() => setActivePanel("trade")}
-              />
-              <ShellTab
-                active={activePanel === "protect"}
-                label={copy.tabs.protect}
-                onClick={() => setActivePanel("protect")}
-              />
-              <ShellTab
-                active={activePanel === "activity"}
-                label={copy.tabs.activity}
-                onClick={() => setActivePanel("activity")}
-              />
-              <ShellTab
-                active={activePanel === "watch"}
-                label={copy.tabs.watch}
-                onClick={() => setActivePanel("watch")}
-              />
-              <ShellTab
-                active={activePanel === "settings"}
-                label={copy.tabs.settings}
-                onClick={() => setActivePanel("settings")}
-              />
-            </div>
-
-            {activePanel !== "trade" ? (
+          {activePanel !== "trade" ? (
+            <div className="shell-header">
               <div className="shell-status">
                 <span>Kernel {shortenAddress(devnetDeploy.programId)}</span>
                 <span>{policy.label}</span>
                 <span>{formatPolicySummary(policy)}</span>
               </div>
-            ) : null}
-          </div>
+            </div>
+          ) : null}
 
           {activePanel === "trade" ? (
             <form className="trade-panel" onSubmit={handleEvaluateRoutes}>
@@ -1000,8 +980,13 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Switch orb */}
-              <button type="button" className="switch-orb" onClick={flipPair} aria-label="Switch tokens">
+              {/* Switch orb — glows during route evaluation */}
+              <button
+                type="button"
+                className={`switch-orb${isEvaluating ? " loading" : ""}`}
+                onClick={flipPair}
+                aria-label="Switch tokens"
+              >
                 <SwitchArrows />
               </button>
 
@@ -2198,126 +2183,171 @@ function CanyonLandscape() {
   return (
     <div className="stage-landscape" aria-hidden="true">
       <svg
-        viewBox="0 0 1440 320"
+        viewBox="0 0 1440 420"
         preserveAspectRatio="xMidYMax slice"
         xmlns="http://www.w3.org/2000/svg"
       >
         <defs>
-          <linearGradient id="horizonGlow" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#c05810" stopOpacity="0"/>
-            <stop offset="100%" stopColor="#7a3010" stopOpacity="0.6"/>
+          <linearGradient id="skyGlow" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#c04c08" stopOpacity="0"/>
+            <stop offset="60%" stopColor="#8a2c06" stopOpacity="0.35"/>
+            <stop offset="100%" stopColor="#6a2006" stopOpacity="0.7"/>
           </linearGradient>
-          <radialGradient id="rockyGlow" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="#f09030" stopOpacity="0.25"/>
+          <radialGradient id="rockyGlow" cx="50%" cy="70%" r="40%">
+            <stop offset="0%" stopColor="#f09030" stopOpacity="0.40"/>
             <stop offset="100%" stopColor="#f09030" stopOpacity="0"/>
           </radialGradient>
+          <radialGradient id="sunGlow" cx="50%" cy="0%" r="60%">
+            <stop offset="0%" stopColor="#ff8020" stopOpacity="0.25"/>
+            <stop offset="100%" stopColor="#ff8020" stopOpacity="0"/>
+          </radialGradient>
         </defs>
-        <rect x="0" y="0" width="1440" height="320" fill="url(#horizonGlow)"/>
 
-        {/* Layer 1 — distant canyon walls */}
+        {/* Sky gradient fill */}
+        <rect x="0" y="0" width="1440" height="420" fill="url(#skyGlow)"/>
+        {/* Horizon sun halo */}
+        <rect x="0" y="0" width="1440" height="420" fill="url(#sunGlow)"/>
+
+        {/* Left canyon wall */}
         <path
-          d="M0 320 L0 175 Q40 158 90 164 Q140 170 190 148
-             Q240 126 300 140 Q360 154 420 130 Q480 106 550 122
-             Q620 138 700 110 Q770 82 850 100 Q920 118 1000 92
-             Q1070 66 1150 84 Q1220 102 1300 78 Q1380 54 1440 64
-             L1440 320 Z"
-          fill="#3a1a08" opacity="0.9"
+          d="M0 420 L0 60 Q30 40 70 55 Q100 70 130 45 Q160 20 200 38
+             Q230 56 260 30 Q280 14 310 28 L310 120
+             Q270 130 240 118 Q200 106 160 124 Q120 140 80 128 L80 420 Z"
+          fill="#5a2208" opacity="0.95"
+        />
+        <path
+          d="M0 420 L0 140 Q40 126 80 134 Q120 142 160 160 Q200 178 240 165
+             Q270 154 310 168 L310 420 Z"
+          fill="#7a3212"
+        />
+
+        {/* Right canyon wall */}
+        <path
+          d="M1440 420 L1440 60 Q1410 40 1370 55 Q1340 70 1310 45
+             Q1280 20 1240 38 Q1210 56 1180 30 Q1160 14 1130 28
+             L1130 120 Q1170 130 1200 118 Q1240 106 1280 124
+             Q1320 140 1360 128 L1360 420 Z"
+          fill="#5a2208" opacity="0.95"
+        />
+        <path
+          d="M1440 420 L1440 140 Q1400 126 1360 134 Q1320 142 1280 160
+             Q1240 178 1200 165 Q1170 154 1130 168 L1130 420 Z"
+          fill="#7a3212"
+        />
+
+        {/* Layer 1 — distant canyon walls (horizon) */}
+        <path
+          d="M260 420 L260 130 Q300 108 350 118 Q400 128 460 100
+             Q520 72 590 90 Q660 108 730 80 Q800 52 870 72
+             Q940 92 1010 68 Q1070 48 1130 62
+             L1130 420 Z"
+          fill="#4a1e0a" opacity="0.9"
         />
 
         {/* Layer 2 — mid canyon */}
         <path
-          d="M0 320 L0 205 Q50 192 110 198 Q170 205 230 183
-             Q270 167 310 181 L310 154 Q322 144 336 148 Q350 152 360 144
-             L360 158 Q400 148 450 164 Q500 180 560 158
-             Q620 138 680 154 Q740 168 810 148
-             Q880 128 950 146 Q1020 162 1090 140
-             L1090 118 Q1106 108 1120 112 L1120 142
-             Q1172 136 1232 152 Q1302 168 1362 148
-             Q1412 134 1440 138 L1440 320 Z"
-          fill="#521f08" opacity="0.95"
+          d="M260 420 L260 188 Q300 174 360 180 Q420 186 470 162
+             Q510 144 550 160 L550 136 Q562 126 576 130 Q590 134 600 126
+             L600 144 Q640 134 690 150 Q740 166 800 144
+             Q860 122 920 140 Q980 158 1040 136
+             L1040 114 Q1056 104 1070 108 L1070 138
+             Q1110 130 1130 144 L1130 420 Z"
+          fill="#622410" opacity="0.95"
         />
 
-        {/* Layer 3 — near foreground rocks */}
+        {/* Layer 3 — near foreground */}
         <path
-          d="M0 320 L0 245 Q60 232 130 238 Q200 245 260 224
-             Q300 210 340 220 L340 202 Q355 191 370 196 L370 222
-             Q432 218 502 230 Q562 242 612 223
-             Q652 208 692 220 L692 203 Q705 193 718 197 L718 224
-             Q782 220 852 234 Q922 248 972 228
-             Q1012 212 1052 226 L1052 206
-             Q1068 196 1084 200 Q1100 204 1116 197
-             L1116 220 Q1172 212 1232 226
-             Q1302 240 1362 222 Q1412 208 1440 212
-             L1440 320 Z"
-          fill="#6b2a0c"
+          d="M260 420 L260 250 Q320 236 390 244 Q460 252 510 230
+             Q550 214 590 228 L590 210 Q606 198 622 204 L622 230
+             Q682 224 752 238 Q822 252 872 230
+             Q912 214 952 228 L952 210
+             Q968 198 984 202 Q1000 206 1016 198
+             L1016 224 Q1060 216 1130 232 L1130 420 Z"
+          fill="#7e2e12"
         />
 
-        {/* Layer 4 — closest foreground */}
+        {/* Layer 4 — closest foreground (wide) */}
         <path
-          d="M0 320 L0 272 Q80 260 160 268 Q240 276 320 260
-             Q380 248 440 260 L440 244 Q455 233 470 238 L470 262
-             Q542 256 622 268 Q702 280 762 264
-             Q802 252 842 264 L842 248
-             Q858 237 874 241 L874 266
-             Q942 260 1022 272 Q1102 284 1162 268
-             Q1222 252 1282 268 L1282 252
-             Q1300 241 1318 245 L1318 269
-             Q1382 263 1440 267 L1440 320 Z"
-          fill="#7a3010"
+          d="M0 420 L0 298 Q80 284 180 292 Q280 300 360 282
+             Q420 268 480 282 L480 264 Q496 252 514 258 L514 282
+             Q590 274 680 288 Q770 302 840 284
+             Q890 270 940 284 L940 266
+             Q958 254 976 258 L976 286
+             Q1060 278 1160 292 Q1260 306 1360 290
+             Q1400 282 1440 278 L1440 420 Z"
+          fill="#8e3414"
         />
 
         {/* Rocky glow halo */}
-        <ellipse cx="720" cy="218" rx="70" ry="40" fill="url(#rockyGlow)"/>
+        <ellipse cx="720" cy="270" rx="90" ry="50" fill="url(#rockyGlow)"/>
 
-        {/* Rocky character — sitting on the center foreground rock */}
-        <g transform="translate(720, 215)">
-          {/* Shadow under Rocky */}
-          <ellipse cx="0" cy="34" rx="30" ry="6" fill="#3a1006" opacity="0.5"/>
-          {/* Body boulder */}
-          <ellipse cx="0" cy="12" rx="28" ry="24" fill="#6b2a0c"/>
-          {/* Rocky top ridge detail */}
-          <path d="M-28 12 Q-22 -2 -16 2 Q-10 -8 -4 -3 Q0 -12 4 -5 Q10 -9 16 0 Q22 -3 28 10" fill="#7a3414" stroke="none"/>
-          {/* Highlight */}
-          <ellipse cx="-10" cy="2" rx="10" ry="6" fill="#904020" opacity="0.45"/>
+        {/* Rocky — new rounded-square design matching nav icon */}
+        <g transform="translate(720, 252)">
+          {/* Shadow */}
+          <ellipse cx="0" cy="42" rx="34" ry="7" fill="#2a0e04" opacity="0.5"/>
+          {/* Body — rounded rect like the nav icon */}
+          <rect x="-30" y="-28" width="60" height="60" rx="14" fill="#f07030"/>
+          {/* Ridge line at top */}
+          <path d="M-26 -10 Q-20 -18 -13 -14 Q-7 -22 0 -18 Q7 -22 13 -14 Q20 -18 26 -10"
+            stroke="#ff9050" strokeWidth="2" fill="none" strokeLinecap="round"/>
           {/* Left eye */}
-          <circle cx="-10" cy="12" r="4" fill="#1a0804"/>
-          <circle cx="-8.4" cy="10.4" r="1.4" fill="white" opacity="0.9"/>
+          <circle cx="-11" cy="6" r="5" fill="white"/>
+          <circle cx="-11" cy="7" r="2.5" fill="#1a0804"/>
+          <circle cx="-9.5" cy="5.5" r="1" fill="white" opacity="0.9"/>
           {/* Right eye */}
-          <circle cx="10" cy="12" r="4" fill="#1a0804"/>
-          <circle cx="11.6" cy="10.4" r="1.4" fill="white" opacity="0.9"/>
+          <circle cx="11" cy="6" r="5" fill="white"/>
+          <circle cx="11" cy="7" r="2.5" fill="#1a0804"/>
+          <circle cx="12.5" cy="5.5" r="1" fill="white" opacity="0.9"/>
           {/* Smile */}
-          <path d="M-10 22 Q0 30 10 22" stroke="#1a0804" strokeWidth="2.5" strokeLinecap="round" fill="none"/>
-          {/* Rock crack */}
-          <path d="M2 -2 L0 6 L3 10" stroke="#3a1006" strokeWidth="1.2" strokeLinecap="round" opacity="0.5"/>
-          {/* Little arm nubs */}
-          <ellipse cx="-28" cy="18" rx="8" ry="6" fill="#5a2008"/>
-          <ellipse cx="28" cy="18" rx="8" ry="6" fill="#5a2008"/>
-          {/* Sparks above */}
-          <path d="M-6 -16 L-4 -24 L-5.5 -19 L-9 -21 Z" fill="#f09030"/>
-          <path d="M8 -14 L10 -22 L8.5 -17 L5.5 -20 Z" fill="#f09030"/>
-          <circle cx="16" cy="-22" r="2.5" fill="#ffbf40" opacity="0.75"/>
-          <circle cx="-14" cy="-20" r="2" fill="#ffbf40" opacity="0.65"/>
-          <circle cx="2" cy="-27" r="1.5" fill="#ffd060" opacity="0.8"/>
+          <path d="M-11 18 Q0 26 11 18" stroke="white" strokeWidth="2.2" fill="none" strokeLinecap="round"/>
+          {/* Sparkles above */}
+          <path d="M-8 -30 L-6 -40 L-7.5 -34 L-12 -37 Z" fill="#ffd060"/>
+          <path d="M8 -28 L10 -38 L8.5 -32 L5 -36 Z" fill="#ffd060"/>
+          <circle cx="18" cy="-36" r="3" fill="#ffbf40" opacity="0.80"/>
+          <circle cx="-16" cy="-34" r="2.5" fill="#ffbf40" opacity="0.70"/>
+          <circle cx="2" cy="-42" r="2" fill="#fff0a0" opacity="0.85"/>
         </g>
 
-        {/* Small rocky pebbles flanking */}
-        <g transform="translate(620, 236)">
-          <ellipse cx="0" cy="0" rx="14" ry="11" fill="#5a2008"/>
-          <ellipse cx="-4" cy="-4" rx="5" ry="3" fill="#7a3414" opacity="0.5"/>
-          <circle cx="-4" cy="-1" r="2" fill="#1a0804"/>
-          <circle cx="4" cy="-1" r="2" fill="#1a0804"/>
-          <circle cx="-3.3" cy="-1.7" r="0.7" fill="white" opacity="0.8"/>
-          <circle cx="4.7" cy="-1.7" r="0.7" fill="white" opacity="0.8"/>
-          <path d="M-4 4 Q0 7 4 4" stroke="#1a0804" strokeWidth="1.4" strokeLinecap="round" fill="none"/>
+        {/* Pebble buddy left */}
+        <g transform="translate(560, 276)">
+          <rect x="-16" y="-14" width="32" height="28" rx="9" fill="#c05828"/>
+          <path d="M-12 -8 Q-7 -13 0 -10 Q7 -13 12 -8" stroke="#d97040" strokeWidth="1.4" fill="none" strokeLinecap="round"/>
+          <circle cx="-6" cy="-1" r="3.2" fill="white"/>
+          <circle cx="6" cy="-1" r="3.2" fill="white"/>
+          <circle cx="-6" cy="-0.5" r="1.6" fill="#1a0804"/>
+          <circle cx="6" cy="-0.5" r="1.6" fill="#1a0804"/>
+          <path d="M-6 8 Q0 13 6 8" stroke="white" strokeWidth="1.6" fill="none" strokeLinecap="round"/>
         </g>
-        <g transform="translate(820, 238)">
-          <ellipse cx="0" cy="0" rx="12" ry="10" fill="#5a2008"/>
-          <ellipse cx="-3" cy="-3" rx="4" ry="2.5" fill="#7a3414" opacity="0.5"/>
-          <circle cx="-3" cy="-1" r="1.8" fill="#1a0804"/>
-          <circle cx="3" cy="-1" r="1.8" fill="#1a0804"/>
-          <circle cx="-2.4" cy="-1.6" r="0.6" fill="white" opacity="0.8"/>
-          <circle cx="3.6" cy="-1.6" r="0.6" fill="white" opacity="0.8"/>
-          <path d="M-3 4 Q0 6.5 3 4" stroke="#1a0804" strokeWidth="1.3" strokeLinecap="round" fill="none"/>
+
+        {/* Pebble buddy right */}
+        <g transform="translate(882, 280)">
+          <rect x="-14" y="-12" width="28" height="24" rx="8" fill="#b05020"/>
+          <path d="M-10 -6 Q-5 -11 0 -8 Q5 -11 10 -6" stroke="#cc6838" strokeWidth="1.3" fill="none" strokeLinecap="round"/>
+          <circle cx="-5" cy="-1" r="2.8" fill="white"/>
+          <circle cx="5" cy="-1" r="2.8" fill="white"/>
+          <circle cx="-5" cy="-0.5" r="1.4" fill="#1a0804"/>
+          <circle cx="5" cy="-0.5" r="1.4" fill="#1a0804"/>
+          <path d="M-5 7 Q0 11 5 7" stroke="white" strokeWidth="1.4" fill="none" strokeLinecap="round"/>
+        </g>
+
+        {/* Tiny pebble far left */}
+        <g transform="translate(390, 296)">
+          <rect x="-10" y="-9" width="20" height="18" rx="6" fill="#a04820"/>
+          <circle cx="-3.5" cy="-1" r="2.2" fill="white"/>
+          <circle cx="3.5" cy="-1" r="2.2" fill="white"/>
+          <circle cx="-3.5" cy="-0.5" r="1.1" fill="#1a0804"/>
+          <circle cx="3.5" cy="-0.5" r="1.1" fill="#1a0804"/>
+          <path d="M-3 5 Q0 8 3 5" stroke="white" strokeWidth="1.2" fill="none" strokeLinecap="round"/>
+        </g>
+
+        {/* Tiny pebble far right */}
+        <g transform="translate(1060, 290)">
+          <rect x="-10" y="-9" width="20" height="18" rx="6" fill="#a84e24"/>
+          <circle cx="-3.5" cy="-1" r="2.2" fill="white"/>
+          <circle cx="3.5" cy="-1" r="2.2" fill="white"/>
+          <circle cx="-3.5" cy="-0.5" r="1.1" fill="#1a0804"/>
+          <circle cx="3.5" cy="-0.5" r="1.1" fill="#1a0804"/>
+          <path d="M-3 5 Q0 8 3 5" stroke="white" strokeWidth="1.2" fill="none" strokeLinecap="round"/>
         </g>
       </svg>
     </div>
