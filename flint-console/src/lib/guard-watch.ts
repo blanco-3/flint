@@ -1,3 +1,4 @@
+import { canonicalMint, canonicalPairKey, canonicalVenue } from "./guard-policies";
 import type {
   IncidentSeverity,
   SafetyFeedItem,
@@ -22,13 +23,37 @@ export function buildWatchlistMatches(
   const matches: WatchlistMatch[] = [];
 
   for (const token of watchlist.tokens) {
-    matches.push(buildMatch("token", token, items, (item) => item.affectedTokens.includes(token)));
+    const normalized = canonicalMint(token);
+    matches.push(
+      buildMatch(
+        "token",
+        normalized,
+        items,
+        (item) => item.affectedTokens.map(canonicalMint).includes(normalized)
+      )
+    );
   }
   for (const pair of watchlist.pairs) {
-    matches.push(buildMatch("pair", pair, items, (item) => item.affectedPairs.includes(pair)));
+    const normalized = normalizePair(pair);
+    matches.push(
+      buildMatch(
+        "pair",
+        normalized,
+        items,
+        (item) => item.affectedPairs.map(normalizePair).includes(normalized)
+      )
+    );
   }
   for (const venue of watchlist.venues) {
-    matches.push(buildMatch("venue", venue, items, (item) => item.affectedVenues.includes(venue)));
+    const normalized = canonicalVenue(venue);
+    matches.push(
+      buildMatch(
+        "venue",
+        normalized,
+        items,
+        (item) => item.affectedVenues.map(canonicalVenue).includes(normalized)
+      )
+    );
   }
 
   return matches.sort((a, b) => {
@@ -71,4 +96,10 @@ function severityRank(severity: IncidentSeverity | null) {
     default:
       return 0;
   }
+}
+
+function normalizePair(value: string) {
+  if (!value.includes("::")) return value.trim();
+  const [left, right] = value.split("::");
+  return canonicalPairKey(left, right);
 }

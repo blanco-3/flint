@@ -406,6 +406,19 @@ body {
   gap: 6px;
 }
 
+.trade-workbench {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.pair-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  padding: 4px 2px 8px;
+}
+
 /* ── Swap group: sell + orb + buy connected ── */
 .swap-group {
   display: flex;
@@ -654,6 +667,47 @@ body {
   letter-spacing: 0.01em;
 }
 
+.trade-analysis {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0 8px 12px;
+}
+
+.trade-route-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.trade-decision-bar {
+  align-items: flex-start;
+  border-color: rgba(224, 96, 24, 0.26);
+  background:
+    linear-gradient(180deg, rgba(240, 112, 48, 0.09) 0%, rgba(255, 255, 255, 0.01) 100%),
+    var(--surface);
+}
+
+.trade-decision-side {
+  display: grid;
+  gap: 8px;
+  justify-items: end;
+}
+
+.route-card {
+  margin-bottom: 0;
+}
+
+.route-card.highlighted {
+  border-color: rgba(240, 112, 48, 0.34);
+  box-shadow: inset 0 0 0 1px rgba(240, 112, 48, 0.12);
+}
+
+.trade-hint-card,
+.empty-route-card {
+  margin-bottom: 0;
+}
+
 /* ===================================
    Slippage / settings (hidden inline)
    =================================== */
@@ -867,6 +921,11 @@ body {
 
 .order-card:hover { border-color: var(--border-2); }
 
+.order-card.candidate {
+  background: rgba(208, 56, 24, 0.07);
+  border-color: rgba(208, 56, 24, 0.2);
+}
+
 .order-head {
   display: flex;
   align-items: flex-start;
@@ -883,6 +942,17 @@ body {
 .order-reasons { display: flex; flex-wrap: wrap; gap: 6px; }
 
 .panic-actions { padding-top: 16px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 9px; }
+
+.protect-urgency-bar.armed {
+  border-color: rgba(192, 136, 32, 0.24);
+  background:
+    linear-gradient(180deg, rgba(192, 136, 32, 0.12) 0%, rgba(255, 255, 255, 0.01) 100%),
+    var(--surface);
+}
+
+.protect-urgency-bar.idle {
+  border-style: dashed;
+}
 
 /* ================================
    ACTIVITY PANEL
@@ -908,6 +978,10 @@ body {
 .proof-card a { display: inline-flex; align-items: center; gap: 4px; margin-top: 9px; font-size: 13px; color: var(--accent); font-weight: 500; }
 .proof-card a:hover { text-decoration: underline; }
 .upload-card input { margin-top: 10px; color: var(--text-1); }
+
+.settings-upload-card {
+  margin-top: 12px;
+}
 
 .info-card {
   padding: 16px;
@@ -996,6 +1070,79 @@ body {
   display: grid;
   gap: 10px;
   margin-top: 16px;
+}
+
+.asset-health-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.asset-health-card {
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.asset-health-card.safe {
+  background:
+    linear-gradient(180deg, rgba(90, 144, 48, 0.10) 0%, rgba(255, 255, 255, 0.01) 100%),
+    var(--surface);
+}
+
+.asset-health-card.warn {
+  background:
+    linear-gradient(180deg, rgba(192, 136, 32, 0.12) 0%, rgba(255, 255, 255, 0.01) 100%),
+    var(--surface);
+  border-color: rgba(192, 136, 32, 0.22);
+}
+
+.asset-health-card.blocked {
+  background:
+    linear-gradient(180deg, rgba(208, 56, 24, 0.14) 0%, rgba(255, 255, 255, 0.01) 100%),
+    var(--surface);
+  border-color: rgba(208, 56, 24, 0.22);
+}
+
+.asset-score-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.asset-score-row span {
+  font-size: 11px;
+  color: var(--text-2);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.asset-score-row strong {
+  font-size: 32px;
+  line-height: 1;
+  color: var(--text-0);
+}
+
+.compact-report-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 10px;
+}
+
+.inline-link {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.inline-link:hover {
+  text-decoration: underline;
 }
 
 .feed-item-card {
@@ -1182,6 +1329,7 @@ body {
    ================================ */
 @media (max-width: 900px) {
   .trade-shell.wide-panel { max-width: 720px; }
+  .trade-route-grid { grid-template-columns: 1fr; }
   .proof-strip { grid-template-columns: repeat(2, 1fr); }
   .panic-summary { grid-template-columns: repeat(2, 1fr); }
   .logs-grid { grid-template-columns: 1fr; }
@@ -1193,6 +1341,7 @@ body {
   .trade-shell { border-radius: 18px; }
   .shell-header { flex-wrap: wrap; }
   .trade-shell.wide-panel { max-width: 100%; }
+  .trade-decision-side { justify-items: start; }
   .panic-summary { grid-template-columns: 1fr 1fr; }
   .proof-strip { grid-template-columns: 1fr; }
   .logs-grid { grid-template-columns: 1fr; }

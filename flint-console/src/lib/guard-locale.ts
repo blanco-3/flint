@@ -8,11 +8,9 @@ export const LOCALE_LABELS: Record<LocaleCode, string> = {
 export const COPY = {
   en: {
     brandLine: "Safety-first execution on the Flint stack",
-    heroTitle: "Trade safer.\nExit faster.",
+    heroTitle: "Monitor risk.\nTrade safer.",
     heroSubtitle:
-      "Route compare, risk explain, and panic-order triage — powered by the Flint proof stack.",
-    seededBanner:
-      "Seeded demo active — route execution and panic cancellation are simulated for judges.",
+      "Watch live incidents, understand execution risk, and act before unsafe routes or exposed orders hurt you.",
     tabs: {
       trade: "Trade",
       protect: "Protect",
@@ -29,6 +27,8 @@ export const COPY = {
     trade: {
       sell: "You sell",
       buy: "You buy",
+      balance: "Balance",
+      maxSlippage: "Max slippage",
       protected: "Protected",
       receive: "You receive",
       getQuote: "Get quote",
@@ -38,6 +38,30 @@ export const COPY = {
       connectToTrade: "Connect wallet",
       mode: "Mode",
       policy: "Policy",
+      baseRoute: "Base route",
+      safeRoute: "Safer route",
+      noSafeRouteTitle: "No safer fallback available",
+      noSafeRouteBody:
+        "Flint blocked the base route and could not find a policy-compliant fallback yet.",
+      liveRouteBoard: "Live route board",
+      tradeHintTitle: "Price the route, then let Flint score it",
+      tradeHintBody:
+        "Pick a common pair or choose custom tokens, fetch a live quote, and Flint will show whether the route is clear, degraded, or blocked.",
+      routeReadyTitle: "Route is live and ready",
+      routeReadyBody:
+        "The current route passes policy and can be sent through the connected wallet.",
+      safeRouteReadyTitle: "Safer fallback is ready",
+      safeRouteReadyBody:
+        "Flint blocked the base route and found a safer alternative with better policy posture.",
+      executionBlockedTitle: "Execution is blocked",
+      executionBlockedBody:
+        "The live route violates the current policy and Flint does not have an acceptable fallback yet.",
+      reviewRouteTitle: "Route needs review",
+      routeScore: "Route score",
+      priceImpact: "Price impact",
+      hops: "Hops",
+      clearRouteTitle: "Route is clear",
+      clearRouteBody: "No blocking or warning reasons were detected for the current policy.",
     },
     protect: {
       kicker: "Panic desk",
@@ -66,35 +90,61 @@ export const COPY = {
         "Seeded orders let you show the panic workflow even if no live trigger orders exist.",
       liveHelper:
         "Flint uses Jupiter Trigger cancel transactions, then asks the connected wallet to sign and submit them on mainnet.",
+      responseReadyTitle: "Orders need action now",
+      responseIdleTitle: "Protection desk is standing by",
+      responseIdleBody:
+        "Arm panic mode and refresh live orders when you want Flint to turn current exposure into cancel candidates.",
+      ordersNeedAction: "selected order(s) need action",
+      actionRequired: "action required",
+      monitoring: "monitoring",
+      armPanicMode: "arm panic mode",
     },
     watch: {
       kicker: "Watch surface",
       title: "See incident risk without executing a swap",
       subtitle:
-        "Publish the current incident, inspect the shared safety feed, or import a bundle from another operator.",
+        "Start from live market stress, inspect the shared safety feed, then move into Trade or Protect when action is required.",
       refreshFeed: "Refresh feed",
       refreshing: "Refreshing...",
       publish: "Publish current incident",
       publishing: "Publishing...",
+      lastUpdated: "Last updated",
       snapshot: "Today's risk snapshot",
       activeIncidents: "Active incidents",
       criticalIncidents: "Critical incidents",
       degradedIncidents: "Degraded incidents",
       blockedRoutes: "Blocked routes",
-      incidentBoard: "Active incident board",
+      livePoolBoard: "Live pool board",
       noFeed: "No shared safety incidents yet",
       noFeedBody:
-        "Publish the current incident or import a bundle to start using Flint Guard as a watch surface.",
+        "Refresh the live board or publish the current incident to begin building a shared watch surface.",
       currentIncident: "Current incident",
       feedSnapshot: "Feed snapshot",
       currentProfile: "Current action profile",
+      marketStatus: "Market status",
+      assetHealth: "Asset health board",
+      assetHealthBody:
+        "Flint auto-scores major monitored assets from live route and pool conditions instead of waiting for manual input.",
+      assetScore: "Asset score",
+      monitoredPairs: "monitored pair(s)",
+      monitoredVenues: "venue(s)",
+      clearNow: "clear now",
+      venueRoutes: "live route(s)",
+      blockedNow: "blocked now",
+      venuePressure: "Venue pressure",
+      riskThemes: "What is breaking now",
+      riskThemesBody:
+        "Repeated risk themes across live pairs are usually where the market is leaking value fastest.",
+      openPool: "Open pool",
       importBundle: "Import bundle",
       importBody:
         "Load a deterministic incident bundle from another console or operator.",
-      importedBundle: "Imported bundle",
       watchlist: "Risk watchlist",
       watchlistBody:
         "Track tokens, pairs, and venues even when you are not preparing a swap.",
+      optionalWatchlist: "Custom overlay",
+      optionalWatchlistBody:
+        "Optional: add your own tokens, pairs, or venues on top of the automatic market board.",
       addToken: "Add token",
       addPair: "Add pair",
       addVenue: "Add venue",
@@ -104,6 +154,7 @@ export const COPY = {
       noWatchlistBody:
         "Add a token, pair, or venue to monitor overlap with active incidents.",
       selectedIncident: "Feed detail",
+      openProtectDesk: "Open in Protect",
     },
     activity: {
       activityLog: "Activity log",
@@ -140,17 +191,22 @@ export const COPY = {
     },
     common: {
       none: "none",
+      yes: "yes",
+      no: "no",
       simulated: "simulated",
-      notLoaded: "No relay snapshot loaded yet.",
+      notLoaded: "No live data loaded yet.",
+      liveApis: "Live APIs",
+      seededDemo: "Lab demo",
+      labMode: "Lab / Replay",
+      dataMode: "Data mode",
+      currentPanel: "Current panel",
     },
   },
   kr: {
     brandLine: "Flint 스택 위의 안전 우선 실행 콘솔",
-    heroTitle: "더 안전하게 거래하고\n더 빠르게 회수하세요.",
+    heroTitle: "위험을 먼저 보고\n더 안전하게 거래하세요.",
     heroSubtitle:
-      "경로 비교, 리스크 설명, 패닉 주문 정리까지 Flint proof stack 위에서 제공합니다.",
-    seededBanner:
-      "시드 데모 모드 활성화 — 심사 데모용으로 라우트 실행과 패닉 취소가 시뮬레이션됩니다.",
+      "실시간 incident를 감시하고, 실행 리스크를 이해하고, 위험한 경로나 노출 주문보다 먼저 대응하세요.",
     tabs: {
       trade: "거래",
       protect: "보호",
@@ -167,6 +223,8 @@ export const COPY = {
     trade: {
       sell: "판매 토큰",
       buy: "수령 토큰",
+      balance: "잔액",
+      maxSlippage: "최대 슬리피지",
       protected: "보호됨",
       receive: "예상 수령량",
       getQuote: "견적 받기",
@@ -176,6 +234,30 @@ export const COPY = {
       connectToTrade: "지갑 연결",
       mode: "모드",
       policy: "정책",
+      baseRoute: "기본 경로",
+      safeRoute: "더 안전한 경로",
+      noSafeRouteTitle: "더 안전한 대체 경로가 없습니다",
+      noSafeRouteBody:
+        "Flint가 기본 경로를 차단했지만 아직 정책을 통과하는 대체 경로를 찾지 못했습니다.",
+      liveRouteBoard: "실시간 경로 보드",
+      tradeHintTitle: "실시간 견적을 받아 경로를 점수화하세요",
+      tradeHintBody:
+        "주요 페어를 바로 선택하거나 토큰을 직접 고른 뒤 견적을 받으면, Flint가 경로를 허용/경고/차단으로 설명합니다.",
+      routeReadyTitle: "경로가 실시간으로 준비되었습니다",
+      routeReadyBody:
+        "현재 경로가 정책을 통과했고, 연결된 지갑으로 바로 실행할 수 있습니다.",
+      safeRouteReadyTitle: "더 안전한 대체 경로가 준비되었습니다",
+      safeRouteReadyBody:
+        "Flint가 기본 경로를 차단했고, 더 나은 정책 상태의 대체 경로를 찾았습니다.",
+      executionBlockedTitle: "실행이 차단되었습니다",
+      executionBlockedBody:
+        "현재 실시간 경로가 정책을 위반하고 있고, 아직 허용 가능한 대체 경로도 없습니다.",
+      reviewRouteTitle: "경로 검토 필요",
+      routeScore: "경로 점수",
+      priceImpact: "가격 영향",
+      hops: "홉 수",
+      clearRouteTitle: "경로가 깨끗합니다",
+      clearRouteBody: "현재 정책 기준으로 차단 또는 경고 사유가 감지되지 않았습니다.",
     },
     protect: {
       kicker: "패닉 데스크",
@@ -204,35 +286,61 @@ export const COPY = {
         "라이브 주문이 없어도 데모 주문으로 패닉 대응 흐름을 보여줄 수 있습니다.",
       liveHelper:
         "Flint는 Jupiter Trigger 취소 트랜잭션을 만들고, 지갑 서명을 받아 메인넷에 제출합니다.",
+      responseReadyTitle: "지금 정리해야 할 주문이 있습니다",
+      responseIdleTitle: "보호 데스크가 대기 중입니다",
+      responseIdleBody:
+        "패닉 모드를 켜고 라이브 주문을 새로고침하면 Flint가 현재 노출을 취소 후보로 정리합니다.",
+      ordersNeedAction: "개의 선택 주문이 대응 필요",
+      actionRequired: "즉시 대응",
+      monitoring: "모니터링 중",
+      armPanicMode: "패닉 모드 필요",
     },
     watch: {
       kicker: "감시 표면",
       title: "스왑 없이도 시장 위험을 모니터링합니다",
       subtitle:
-        "현재 incident를 발행하고, 공유 safety feed를 확인하고, 다른 운영자가 보낸 bundle을 불러올 수 있습니다.",
+        "실시간 시장 위험부터 보고, 공유 safety feed를 확인한 뒤, 실제 대응이 필요하면 Trade나 Protect로 이동합니다.",
       refreshFeed: "피드 새로고침",
       refreshing: "새로고침 중...",
       publish: "현재 incident 발행",
       publishing: "발행 중...",
+      lastUpdated: "마지막 갱신",
       snapshot: "오늘의 위험 스냅샷",
       activeIncidents: "활성 incident",
       criticalIncidents: "심각 incident",
       degradedIncidents: "경고 incident",
       blockedRoutes: "차단 경로 수",
-      incidentBoard: "활성 incident 보드",
+      livePoolBoard: "실시간 풀 보드",
       noFeed: "공유된 safety incident가 없습니다",
       noFeedBody:
-        "현재 incident를 발행하거나 bundle을 불러와 Watch surface를 시작하세요.",
+        "라이브 보드를 새로고침하거나 현재 incident를 발행해 Watch surface를 시작하세요.",
       currentIncident: "현재 incident",
       feedSnapshot: "피드 스냅샷",
       currentProfile: "현재 액션 프로필",
+      marketStatus: "시장 상태",
+      assetHealth: "자산 건강도 보드",
+      assetHealthBody:
+        "수동 입력을 기다리지 않고, Flint가 주요 자산을 실시간 경로와 풀 상태로 자동 점수화합니다.",
+      assetScore: "자산 점수",
+      monitoredPairs: "개 페어",
+      monitoredVenues: "개 베뉴",
+      clearNow: "현재 깨끗함",
+      venueRoutes: "개 경로",
+      blockedNow: "개 차단",
+      venuePressure: "베뉴 압력",
+      riskThemes: "지금 반복되는 위험",
+      riskThemesBody:
+        "여러 라이브 페어에서 반복되는 위험 테마는 시장에서 가장 빠르게 가치가 새는 지점입니다.",
+      openPool: "풀 열기",
       importBundle: "번들 불러오기",
       importBody:
         "다른 콘솔/운영자가 만든 deterministic incident bundle을 불러옵니다.",
-      importedBundle: "불러온 번들",
       watchlist: "리스크 관심목록",
       watchlistBody:
         "스왑을 준비하지 않아도 토큰, 페어, 베뉴 위험 겹침을 계속 볼 수 있습니다.",
+      optionalWatchlist: "사용자 오버레이",
+      optionalWatchlistBody:
+        "선택 사항: 자동 시장 보드 위에 직접 추적할 토큰, 페어, 베뉴를 덧붙일 수 있습니다.",
       addToken: "토큰 추가",
       addPair: "페어 추가",
       addVenue: "베뉴 추가",
@@ -242,6 +350,7 @@ export const COPY = {
       noWatchlistBody:
         "토큰, 페어, 베뉴를 추가해 활성 incident와의 겹침을 추적하세요.",
       selectedIncident: "피드 상세",
+      openProtectDesk: "Protect에서 열기",
     },
     activity: {
       activityLog: "활동 로그",
@@ -278,8 +387,15 @@ export const COPY = {
     },
     common: {
       none: "없음",
+      yes: "예",
+      no: "아니오",
       simulated: "시뮬레이션",
-      notLoaded: "아직 relay 스냅샷이 없습니다.",
+      notLoaded: "아직 라이브 데이터가 없습니다.",
+      liveApis: "라이브 API",
+      seededDemo: "랩 데모",
+      labMode: "랩 / 리플레이",
+      dataMode: "데이터 모드",
+      currentPanel: "현재 패널",
     },
   },
 } as const;

@@ -259,3 +259,41 @@ export type WatchlistMatch = {
   highestSeverity: IncidentSeverity | null;
   overlappingIncidentIds: string[];
 };
+
+export type MarketRiskItem = {
+  pairKey: string;
+  inputSymbol: string;
+  outputSymbol: string;
+  venue: string;
+  venues: string[];
+  status: "safe" | "warn" | "blocked";
+  score: number;
+  reasonTitles: string[];
+  liquidityUsd: number | null;
+  priceImpactPct: number | null;
+  updatedAt: string;
+  poolUrl?: string | null;
+};
+
+export type MarketTokenHealth = {
+  symbol: string;
+  status: "safe" | "warn" | "blocked";
+  averageScore: number;
+  pairCount: number;
+  venueCount: number;
+  topReasons: string[];
+};
+
+export type MarketVenueHealth = {
+  venue: string;
+  count: number;
+  blockedCount: number;
+  warnCount: number;
+  status: "safe" | "warn" | "blocked";
+};
+
+export type MarketRiskTheme = {
+  title: string;
+  count: number;
+  status: "safe" | "warn" | "blocked";
+};

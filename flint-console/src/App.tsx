@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useEffectEvent, useMemo, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 
 import {
@@ -42,6 +42,12 @@ import {
 } from "./lib/guard-bundle";
 import { buildSafetyFeedItem, buildSafetyFeedSnapshot } from "./lib/guard-feed";
 import { buildIncidentPack, mergePolicyWithIncident } from "./lib/guard-incident";
+import {
+  sortMarketRiskItems,
+  summarizeRiskThemes,
+  summarizeRiskVenues,
+  summarizeTokenHealth,
+} from "./lib/guard-market-board";
 import { fetchPoolSnapshots } from "./lib/guard-market-data";
 import { buildDecisionReport, buildPanicActionPlan } from "./lib/guard-report";
 import { buildWatchSnapshot, buildWatchlistMatches } from "./lib/guard-watch";
@@ -67,6 +73,10 @@ import {
   type GuardPolicyPreset,
   type IncidentPack,
   type LocaleCode,
+  type MarketRiskItem,
+  type MarketRiskTheme,
+  type MarketTokenHealth,
+  type MarketVenueHealth,
   type OrderAssessment,
   type PanicActionPlan,
   type QuoteComparison,
@@ -80,10 +90,11 @@ import {
   type WatchlistState,
 } from "./lib/guard-types";
 import type { Dispatch, SetStateAction } from "react";
-import { TOKEN_OPTIONS, tokenByMint, tokenChoices } from "./lib/token-options";
+import { TOKEN_OPTIONS, tokenByMint, tokenChoices, type TokenOption } from "./lib/token-options";
 import "./index.css";
 
 const STORAGE_KEYS = {
+  version: "flint-guard:version",
   dataMode: "flint-guard:data-mode",
   demoScenario: "flint-guard:demo-scenario",
   preset: "flint-guard:preset",
@@ -96,6 +107,8 @@ const STORAGE_KEYS = {
   watchlist: "flint-guard:watchlist",
 };
 
+const STORAGE_VERSION = "live-product-v1";
+
 const DEFAULT_FORM: QuoteFormState = {
   inputMint: TOKEN_OPTIONS[0].mint,
   outputMint: TOKEN_OPTIONS[1].mint,
@@ -103,15 +116,40 @@ const DEFAULT_FORM: QuoteFormState = {
   slippageBps: 75,
 };
 
+const MARKET_MONITORS: Array<{
+  input: TokenOption;
+  output: TokenOption;
+  amount: string;
+}> = [
+  { input: TOKEN_OPTIONS[0], output: TOKEN_OPTIONS[1], amount: "1" },
+  { input: TOKEN_OPTIONS[0], output: TOKEN_OPTIONS[2], amount: "1" },
+  { input: TOKEN_OPTIONS[0], output: TOKEN_OPTIONS[3], amount: "1" },
+  { input: TOKEN_OPTIONS[2], output: TOKEN_OPTIONS[0], amount: "250" },
+  { input: TOKEN_OPTIONS[3], output: TOKEN_OPTIONS[0], amount: "500000" },
+  { input: TOKEN_OPTIONS[2], output: TOKEN_OPTIONS[1], amount: "250" },
+  { input: TOKEN_OPTIONS[3], output: TOKEN_OPTIONS[1], amount: "500000" },
+  { input: TOKEN_OPTIONS[4], output: TOKEN_OPTIONS[0], amount: "0.5" },
+  { input: TOKEN_OPTIONS[4], output: TOKEN_OPTIONS[1], amount: "0.5" },
+  { input: TOKEN_OPTIONS[5], output: TOKEN_OPTIONS[0], amount: "0.5" },
+  { input: TOKEN_OPTIONS[5], output: TOKEN_OPTIONS[1], amount: "0.5" },
+];
+
+const POPULAR_PAIR_PRESETS = [
+  { label: "SOL -> USDC", inputMint: TOKEN_OPTIONS[0].mint, outputMint: TOKEN_OPTIONS[1].mint },
+  { label: "SOL -> JUP", inputMint: TOKEN_OPTIONS[0].mint, outputMint: TOKEN_OPTIONS[2].mint },
+  { label: "SOL -> BONK", inputMint: TOKEN_OPTIONS[0].mint, outputMint: TOKEN_OPTIONS[3].mint },
+  { label: "JUP -> USDC", inputMint: TOKEN_OPTIONS[2].mint, outputMint: TOKEN_OPTIONS[1].mint },
+] as const;
+
 export default function App() {
   const [activePanel, setActivePanel] = useState<
     "trade" | "protect" | "watch" | "activity" | "settings"
-  >("trade");
+  >("watch");
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [walletError, setWalletError] = useState<string | null>(null);
   const [dataMode, setDataMode] = usePersistentState<GuardDataMode>(
     STORAGE_KEYS.dataMode,
-    "demo"
+    "live"
   );
   const [demoScenario, setDemoScenario] = usePersistentState<DemoScenarioId>(
     STORAGE_KEYS.demoScenario,
@@ -167,6 +205,13 @@ export default function App() {
     pairs: "",
     venues: "",
   });
+  const [marketBoard, setMarketBoard] = useState<MarketRiskItem[]>([]);
+  const [marketTokens, setMarketTokens] = useState<MarketTokenHealth[]>([]);
+  const [marketThemes, setMarketThemes] = useState<MarketRiskTheme[]>([]);
+  const [marketVenues, setMarketVenues] = useState<MarketVenueHealth[]>([]);
+  const [marketBoardError, setMarketBoardError] = useState<string | null>(null);
+  const [isLoadingMarketBoard, setIsLoadingMarketBoard] = useState(false);
+  const [marketRefreshedAt, setMarketRefreshedAt] = useState<string | null>(null);
   const copy = useMemo(() => localeCopy(locale), [locale]);
 
   const basePolicy = useMemo(() => policyCopy(POLICY_PRESETS[policyPreset]), [policyPreset]);
@@ -176,6 +221,26 @@ export default function App() {
     [form.inputMint, form.outputMint]
   );
 
+  const selectedOutputQuote = useMemo(
+    () =>
+      comparison
+        ? comparison.executionTarget === "safe"
+          ? comparison.safeQuote ?? comparison.baseQuote
+          : comparison.baseQuote
+        : null,
+    [comparison]
+  );
+
+  const selectedAssessment = useMemo(
+    () =>
+      comparison
+        ? comparison.executionTarget === "safe"
+          ? comparison.safeAssessment ?? comparison.baseAssessment
+          : comparison.baseAssessment
+        : null,
+    [comparison]
+  );
+
   const incidentLog = useMemo(
     () =>
       activityLog.filter((entry) => entry.kind === "incident" || entry.severity !== "info"),
@@ -183,11 +248,29 @@ export default function App() {
   );
 
   useEffect(() => {
+    setComparison(null);
+    setComparisonError(null);
+  }, [form.inputMint, form.outputMint, form.amount, form.slippageBps]);
+
+  useEffect(() => {
     const injected = getInjectedWallet();
     if (injected?.publicKey) {
       setWalletAddress(injected.publicKey.toBase58());
     }
-  }, []);
+  }, [setActionProfileId, setDataMode, setPolicyPreset, setSignals, setWatchlist]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (window.localStorage.getItem(STORAGE_KEYS.version) === STORAGE_VERSION) return;
+
+    setDataMode("live");
+    setActivePanel("watch");
+    setSignals(DEFAULT_SIGNAL_INPUTS);
+    setWatchlist(DEFAULT_SIGNAL_INPUTS);
+    setPolicyPreset("retail");
+    setActionProfileId(defaultActionProfileForPreset("retail"));
+    window.localStorage.setItem(STORAGE_KEYS.version, STORAGE_VERSION);
+  }, [setActionProfileId, setDataMode, setPolicyPreset, setSignals, setWatchlist]);
 
   const activeScenario = useMemo(() => demoScenarioById(demoScenario), [demoScenario]);
 
@@ -306,6 +389,51 @@ export default function App() {
     () => buildWatchlistMatches(watchlist, currentWatchItems),
     [watchlist, currentWatchItems]
   );
+
+  const refreshWatchSurface = useEffectEvent(() => {
+    void handleRefreshMarketBoard();
+    void handleRefreshSafetyFeed();
+  });
+
+  const refreshProtectSurface = useEffectEvent(() => {
+    void handleLoadOrders();
+  });
+
+  useEffect(() => {
+    if (activePanel !== "watch" || dataMode !== "live") return;
+    if (!marketRefreshedAt || !feedSnapshot) {
+      refreshWatchSurface();
+    }
+
+    const timer = window.setInterval(() => {
+      refreshWatchSurface();
+    }, 30_000);
+
+    return () => window.clearInterval(timer);
+  }, [activePanel, dataMode, marketRefreshedAt, feedSnapshot]);
+
+  useEffect(() => {
+    if (!feedSnapshot?.items.length) return;
+    if (
+      !selectedFeedItem ||
+      !feedSnapshot.items.some((item) => item.bundleId === selectedFeedItem.bundleId)
+    ) {
+      setSelectedFeedItem(feedSnapshot.items[0]);
+    }
+  }, [feedSnapshot, selectedFeedItem]);
+
+  useEffect(() => {
+    if (
+      activePanel !== "protect" ||
+      dataMode !== "live" ||
+      !walletAddress ||
+      ordersLoaded ||
+      isLoadingOrders
+    ) {
+      return;
+    }
+    refreshProtectSurface();
+  }, [activePanel, dataMode, walletAddress, ordersLoaded, isLoadingOrders]);
 
   useEffect(() => {
     if (!orders.length) {
@@ -660,6 +788,83 @@ export default function App() {
     }
   }
 
+  async function handleRefreshMarketBoard() {
+    setIsLoadingMarketBoard(true);
+    setMarketBoardError(null);
+    try {
+      const results = await Promise.allSettled(
+        MARKET_MONITORS.map(async ({ input, output, amount }) => {
+          const quote = await fetchQuote({
+            inputMint: input.mint,
+            outputMint: output.mint,
+            amount: rawAmountFromForm(amount, input.mint),
+            slippageBps: 75,
+          });
+          const pools = await fetchPoolSnapshots(quote.routePlan.map((hop) => hop.swapInfo.ammKey));
+          const assessment = evaluateQuoteRisk(quote, pools, policy);
+          const routeVenues = dedupeStrings(
+            quote.routePlan.map((hop) => hop.swapInfo.label || "unknown")
+          );
+          const primaryPool =
+            quote.routePlan[0]?.swapInfo.ammKey
+              ? pools[quote.routePlan[0].swapInfo.ammKey]
+              : null;
+          return {
+            pairKey: `${input.symbol}/${output.symbol}`,
+            inputSymbol: input.symbol,
+            outputSymbol: output.symbol,
+            venue: routeVenues[0] ?? "unknown",
+            venues: routeVenues,
+            status: assessment.status,
+            score: assessment.score,
+            reasonTitles: assessment.reasons.slice(0, 3).map((reason) => reason.title),
+            liquidityUsd: primaryPool?.liquidityUsd ?? null,
+            priceImpactPct: Number.isFinite(Number(quote.priceImpactPct))
+              ? Number(quote.priceImpactPct)
+              : null,
+            updatedAt: new Date().toISOString(),
+            poolUrl: primaryPool?.url ?? null,
+          } satisfies MarketRiskItem;
+        })
+      );
+
+      const rows = results.reduce<MarketRiskItem[]>((acc, result) => {
+        if (result.status === "fulfilled") {
+          acc.push(result.value);
+        }
+        return acc;
+      }, []);
+
+      if (!rows.length) {
+        throw new Error("market_board_refresh_failed");
+      }
+
+      const sorted = sortMarketRiskItems(rows);
+      setMarketBoard(sorted);
+      setMarketTokens(summarizeTokenHealth(sorted));
+      setMarketThemes(summarizeRiskThemes(sorted));
+      setMarketVenues(summarizeRiskVenues(sorted));
+      setMarketRefreshedAt(new Date().toISOString());
+      appendLog(setActivityLog, {
+        title: "Live market board refreshed",
+        detail: `${sorted.length} monitored route(s) rescored.`,
+        severity: "info",
+        kind: "activity",
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "market_board_refresh_failed";
+      setMarketBoardError(message);
+      appendLog(setActivityLog, {
+        title: "Market board refresh failed",
+        detail: message,
+        severity: "warning",
+        kind: "incident",
+      });
+    } finally {
+      setIsLoadingMarketBoard(false);
+    }
+  }
+
   async function handlePublishSafetyFeed() {
     setIsPublishingFeed(true);
     setFeedError(null);
@@ -746,6 +951,22 @@ export default function App() {
     }));
   }
 
+  function armProtectFromFeedItem(item: SafetyFeedItem) {
+    setSignals((current) => ({
+      tokens: dedupeStrings(current.tokens.concat(item.affectedTokens.map(canonicalMint))),
+      pairs: dedupeStrings(current.pairs.concat(item.affectedPairs.map(normalizeWatchPair))),
+      venues: dedupeStrings(current.venues.concat(item.affectedVenues.map(canonicalVenue))),
+    }));
+    setPanicMode(true);
+    setActivePanel("protect");
+    appendLog(setActivityLog, {
+      title: "Protect desk armed from watch incident",
+      detail: item.incidentId,
+      severity: "warning",
+      kind: "incident",
+    });
+  }
+
   function removeSignal(kind: keyof RiskSignalInputs, value: string) {
     setSignals((current) => ({
       ...current,
@@ -756,9 +977,15 @@ export default function App() {
   function addWatchlistItem(kind: keyof WatchlistState) {
     const raw = watchDrafts[kind].trim();
     if (!raw) return;
+    const normalized =
+      kind === "tokens"
+        ? canonicalMint(raw)
+        : kind === "venues"
+          ? canonicalVenue(raw)
+          : normalizeWatchPair(raw);
     setWatchlist((current) => ({
       ...current,
-      [kind]: dedupeStrings(current[kind].concat(raw)),
+      [kind]: dedupeStrings(current[kind].concat(normalized)),
     }));
     setWatchDrafts((current) => ({ ...current, [kind]: "" }));
   }
@@ -768,6 +995,16 @@ export default function App() {
       ...current,
       [kind]: current[kind].filter((item) => item !== value),
     }));
+  }
+
+  function applyPairPreset(inputMint: string, outputMint: string) {
+    setForm((current) => ({
+      ...current,
+      inputMint,
+      outputMint,
+    }));
+    setComparison(null);
+    setComparisonError(null);
   }
 
   function flipPair() {
@@ -860,7 +1097,7 @@ export default function App() {
     window.URL.revokeObjectURL(url);
     appendLog(setActivityLog, {
       title: "Incident bundle exported",
-      detail: "Downloaded the current demo/log/risk snapshot as JSON.",
+      detail: "Downloaded the current incident, log, and risk snapshot as JSON.",
       severity: "info",
       kind: "activity",
     });
@@ -878,10 +1115,10 @@ export default function App() {
         </div>
 
         <nav className="nav-center-tabs">
+          <ShellTab active={activePanel === "watch"} label={copy.tabs.watch} onClick={() => setActivePanel("watch")} />
           <ShellTab active={activePanel === "trade"} label={copy.tabs.trade} onClick={() => setActivePanel("trade")} />
           <ShellTab active={activePanel === "protect"} label={copy.tabs.protect} onClick={() => setActivePanel("protect")} />
           <ShellTab active={activePanel === "activity"} label={copy.tabs.activity} onClick={() => setActivePanel("activity")} />
-          <ShellTab active={activePanel === "watch"} label={copy.tabs.watch} onClick={() => setActivePanel("watch")} />
           <ShellTab active={activePanel === "settings"} label={copy.tabs.settings} onClick={() => setActivePanel("settings")} />
         </nav>
 
@@ -924,19 +1161,15 @@ export default function App() {
           <h1>{copy.heroTitle.split("\n").map((line, index) => (<span key={line}>{index ? <br /> : null}{line}</span>))}</h1>
           <p>{copy.heroSubtitle}</p>
         </div>
-
-        {dataMode === "demo" ? (
-          <Banner tone="warning">
-            {copy.seededBanner}
-          </Banner>
-        ) : null}
-
         {walletError ? <Banner tone="warning">{walletError}</Banner> : null}
         {comparisonError ? <Banner tone="critical">{comparisonError}</Banner> : null}
         {orderError ? <Banner tone="warning">{orderError}</Banner> : null}
         {feedError ? <Banner tone="warning">{feedError}</Banner> : null}
+        {marketBoardError ? <Banner tone="warning">{marketBoardError}</Banner> : null}
 
-        <section className={`trade-shell${activePanel !== "trade" ? " wide-panel" : ""}`}>
+        <section
+          className={`trade-shell${activePanel !== "trade" || (activePanel === "trade" && comparison) ? " wide-panel" : ""}`}
+        >
           {activePanel !== "trade" ? (
             <div className="shell-header">
               <div className="shell-status">
@@ -948,7 +1181,24 @@ export default function App() {
           ) : null}
 
           {activePanel === "trade" ? (
-            <form className="trade-panel" onSubmit={handleEvaluateRoutes}>
+            <div className="trade-workbench">
+              <form className="trade-panel" onSubmit={handleEvaluateRoutes}>
+                <div className="pair-presets">
+                  {POPULAR_PAIR_PRESETS.map((preset) => (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      className={`chip-button ${
+                        form.inputMint === preset.inputMint && form.outputMint === preset.outputMint
+                          ? "active"
+                          : ""
+                      }`}
+                      onClick={() => applyPairPreset(preset.inputMint, preset.outputMint)}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
 
               {/* ── Swap group: sell + orb + buy connected ── */}
               <div className="swap-group">
@@ -957,7 +1207,19 @@ export default function App() {
               <div className="swap-box sell-box">
                 <div className="swap-box-top">
                   <span className="swap-box-label">{copy.trade.sell}</span>
-                  <span className="swap-balance">Balance: —</span>
+                  <span className="swap-balance">{copy.trade.balance}: —</span>
+                </div>
+                <div className="quick-picks">
+                  {[TOKEN_OPTIONS[0], TOKEN_OPTIONS[1], TOKEN_OPTIONS[2], TOKEN_OPTIONS[3]].map((token) => (
+                    <button
+                      key={`sell-${token.mint}`}
+                      type="button"
+                      className={`token-chip${form.inputMint === token.mint ? " active" : ""}`}
+                      onClick={() => setForm((current) => ({ ...current, inputMint: token.mint }))}
+                    >
+                      {token.symbol}
+                    </button>
+                  ))}
                 </div>
                 <div className="swap-box-main">
                   <input
@@ -996,7 +1258,19 @@ export default function App() {
               <div className="swap-box buy-box">
                 <div className="swap-box-top">
                   <span className="swap-box-label">{copy.trade.buy}</span>
-                  <span className="swap-balance">Balance: —</span>
+                  <span className="swap-balance">{copy.trade.balance}: —</span>
+                </div>
+                <div className="quick-picks">
+                  {[TOKEN_OPTIONS[1], TOKEN_OPTIONS[2], TOKEN_OPTIONS[3], TOKEN_OPTIONS[0]].map((token) => (
+                    <button
+                      key={`buy-${token.mint}`}
+                      type="button"
+                      className={`token-chip${form.outputMint === token.mint ? " active" : ""}`}
+                      onClick={() => setForm((current) => ({ ...current, outputMint: token.mint }))}
+                    >
+                      {token.symbol}
+                    </button>
+                  ))}
                 </div>
                 <div className="swap-box-main">
                   <div className={`swap-readout${comparison ? "" : " empty"}`}>
@@ -1032,7 +1306,7 @@ export default function App() {
 
               {/* ── Slippage row ── */}
               <div className="slippage-row">
-                <span>Max slippage</span>
+                <span>{copy.trade.maxSlippage}</span>
                 <select
                   className="slippage-select"
                   value={form.slippageBps}
@@ -1092,7 +1366,53 @@ export default function App() {
                   {isEvaluating ? copy.trade.findingRoute : copy.trade.getQuote}
                 </button>
               )}
-            </form>
+              </form>
+
+              <div className="trade-analysis">
+                {comparison ? (
+                  <>
+                    <TradeDecisionCard
+                      comparison={comparison}
+                      assessment={selectedAssessment}
+                      outputQuote={selectedOutputQuote}
+                      outputMint={form.outputMint}
+                      copy={copy}
+                    />
+                    <div className="trade-route-grid">
+                      <RouteAssessmentCard
+                        title={copy.trade.baseRoute}
+                        assessment={comparison.baseAssessment}
+                        quote={comparison.baseQuote}
+                        outputMint={form.outputMint}
+                        copy={copy}
+                      />
+                      {comparison.safeQuote && comparison.safeAssessment ? (
+                        <RouteAssessmentCard
+                          title={copy.trade.safeRoute}
+                          assessment={comparison.safeAssessment}
+                          quote={comparison.safeQuote}
+                          outputMint={form.outputMint}
+                          highlighted={comparison.executionTarget === "safe"}
+                          copy={copy}
+                        />
+                      ) : (
+                        <section className="info-card route-card empty-route-card">
+                          <span className="panel-kicker">{copy.trade.safeRoute}</span>
+                          <h2>{copy.trade.noSafeRouteTitle}</h2>
+                          <p>{copy.trade.noSafeRouteBody}</p>
+                        </section>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <section className="info-card trade-hint-card">
+                    <span className="panel-kicker">{copy.trade.liveRouteBoard}</span>
+                    <h2>{copy.trade.tradeHintTitle}</h2>
+                    <p>{copy.trade.tradeHintBody}</p>
+                  </section>
+                )}
+              </div>
+            </div>
           ) : null}
 
           {activePanel === "protect" ? (
@@ -1116,10 +1436,10 @@ export default function App() {
                   label={copy.protect.wallet}
                   value={
                     dataMode === "demo"
-                      ? "simulated"
+                      ? copy.common.simulated
                       : walletAddress
                         ? shortenAddress(walletAddress)
-                        : "none"
+                        : copy.common.none
                   }
                 />
                 <MetricCard label={copy.protect.openOrders} value={String(orders.length)} />
@@ -1136,13 +1456,35 @@ export default function App() {
 
               <ActionPlanCard plan={panicActionPlan} labels={copy.cards} />
 
+              <section className={`execution-bar protect-urgency-bar ${panicMode ? "armed" : "idle"}`}>
+                <div>
+                  <strong>
+                    {panicMode ? copy.protect.responseReadyTitle : copy.protect.responseIdleTitle}
+                  </strong>
+                  <p>
+                    {selectedOrderKeys.length
+                      ? `${selectedOrderKeys.length} ${copy.protect.ordersNeedAction}`
+                      : copy.protect.responseIdleBody}
+                  </p>
+                </div>
+                <span
+                  className={`status-tag ${
+                    selectedOrderKeys.length
+                      ? "alert"
+                      : panicMode
+                        ? "warning"
+                        : "muted"
+                  }`}
+                >
+                  {selectedOrderKeys.length
+                    ? copy.protect.actionRequired
+                    : panicMode
+                      ? copy.protect.monitoring
+                      : copy.protect.armPanicMode}
+                </span>
+              </section>
+
               <div className="protect-config">
-                <ModeToggle
-                  dataMode={dataMode}
-                  onChange={handleDataModeChange}
-                  activeScenarioId={demoScenario}
-                  onScenarioChange={activateDemoScenario}
-                />
                 <PresetToggle
                   preset={policyPreset}
                   onChange={setPolicyPreset}
@@ -1261,7 +1603,7 @@ export default function App() {
                 />
                 <ProofCard
                   title="Submission posture"
-                  detail="Use seeded demo first, then switch to live APIs to prove the route and wallet path."
+                  detail="Use Watch as the live front door, then move into Trade or Protect when action is required."
                 />
                 <ProofCard
                   title="Audit trail"
@@ -1297,6 +1639,9 @@ export default function App() {
                   <p>{copy.watch.subtitle}</p>
                 </div>
                 <div className="nav-actions compact-actions">
+                  <button className="ghost-button" onClick={() => void handleRefreshMarketBoard()}>
+                    {isLoadingMarketBoard ? copy.watch.refreshing : copy.watch.snapshot}
+                  </button>
                   <button className="ghost-button" onClick={() => void handleRefreshSafetyFeed()}>
                     {isLoadingFeed ? copy.watch.refreshing : copy.watch.refreshFeed}
                   </button>
@@ -1317,6 +1662,71 @@ export default function App() {
                 <MetricCard label={copy.watch.blockedRoutes} value={String(watchSnapshot.blockedRouteCount)} />
               </section>
 
+              {marketVenues.length ? (
+                <section className="proof-strip">
+                  {marketVenues.map((entry) => (
+                    <ProofCard
+                      key={entry.venue}
+                      title={entry.venue}
+                      detail={`${entry.count} route(s) currently overlap this venue in the live board.`}
+                    />
+                  ))}
+                </section>
+              ) : null}
+
+              <section className="info-card">
+                <span className="panel-kicker">{copy.watch.livePoolBoard}</span>
+                <p>
+                  {marketRefreshedAt
+                    ? `${copy.watch.lastUpdated}: ${new Date(marketRefreshedAt).toLocaleTimeString()}`
+                    : copy.common.notLoaded}
+                </p>
+                {marketBoard.length ? (
+                  <div className="feed-list">
+                    {marketBoard.map((item) => (
+                      <article className="feed-item-card" key={item.pairKey}>
+                        <div className="compact-route-head">
+                          <strong>{item.pairKey}</strong>
+                          <span className={`status-tag ${item.status === "blocked" ? "alert" : item.status === "warn" ? "warning" : "safe"}`}>
+                            {item.status}
+                          </span>
+                        </div>
+                        <p>
+                          {item.venue} · {copy.trade.routeScore} {item.score} ·{" "}
+                          {item.liquidityUsd ? `$${Math.round(item.liquidityUsd).toLocaleString()}` : copy.common.none} liq
+                        </p>
+                        <div className="report-grid compact-report-grid">
+                          <SummaryPill
+                            label={copy.trade.priceImpact}
+                            value={
+                              typeof item.priceImpactPct === "number" && Number.isFinite(item.priceImpactPct)
+                                ? `${item.priceImpactPct.toFixed(2)}%`
+                                : copy.common.none
+                            }
+                          />
+                          <SummaryPill label={copy.watch.marketStatus} value={item.status} />
+                        </div>
+                        <div className="chip-wrap">
+                          {item.reasonTitles.length ? item.reasonTitles.map((reason) => (
+                            <span key={`${item.pairKey}:${reason}`} className="reason-chip warning">{reason}</span>
+                          )) : <span className="reason-chip muted">{copy.watch.clearNow}</span>}
+                        </div>
+                        {item.poolUrl ? (
+                          <a className="inline-link" href={item.poolUrl} target="_blank" rel="noreferrer">
+                            {copy.watch.openPool}
+                          </a>
+                        ) : null}
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="empty-state">
+                    <strong>{copy.watch.noFeed}</strong>
+                    <p>{copy.watch.noFeedBody}</p>
+                  </div>
+                )}
+              </section>
+
               <div className="proof-strip">
                 <ProofCard
                   title={copy.watch.currentIncident}
@@ -1334,16 +1744,162 @@ export default function App() {
                   title={copy.watch.currentProfile}
                   detail={ACTION_PROFILES[actionProfileId].description}
                 />
-                <label className="proof-card upload-card">
-                  <strong>{copy.watch.importBundle}</strong>
-                  <p>{copy.watch.importBody}</p>
-                  <input type="file" accept="application/json" onChange={handleImportBundle} />
-                </label>
+                <ProofCard
+                  title={copy.watch.marketStatus}
+                  detail={
+                    marketRefreshedAt
+                      ? `${copy.watch.lastUpdated}: ${new Date(marketRefreshedAt).toLocaleTimeString()}`
+                      : copy.common.notLoaded
+                  }
+                />
               </div>
 
               <section className="info-card">
-                <span className="panel-kicker">{copy.watch.watchlist}</span>
-                <p>{copy.watch.watchlistBody}</p>
+                <span className="panel-kicker">{copy.watch.assetHealth}</span>
+                <p>{copy.watch.assetHealthBody}</p>
+                {marketTokens.length ? (
+                  <div className="asset-health-grid">
+                    {marketTokens.map((asset) => (
+                      <article className={`asset-health-card ${asset.status}`} key={asset.symbol}>
+                        <div className="compact-route-head">
+                          <strong>{asset.symbol}</strong>
+                          <span className={`status-tag ${asset.status === "blocked" ? "alert" : asset.status === "warn" ? "warning" : "safe"}`}>
+                            {asset.status}
+                          </span>
+                        </div>
+                        <div className="asset-score-row">
+                          <span>{copy.watch.assetScore}</span>
+                          <strong>{asset.averageScore}</strong>
+                        </div>
+                        <p>
+                          {asset.pairCount} {copy.watch.monitoredPairs} · {asset.venueCount}{" "}
+                          {copy.watch.monitoredVenues}
+                        </p>
+                        <div className="chip-wrap">
+                          {asset.topReasons.length ? (
+                            asset.topReasons.map((reason) => (
+                              <span key={`${asset.symbol}:${reason}`} className="reason-chip warning">
+                                {reason}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="reason-chip muted">{copy.watch.clearNow}</span>
+                          )}
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="empty-state">
+                    <strong>{copy.watch.noFeed}</strong>
+                    <p>{copy.watch.noFeedBody}</p>
+                  </div>
+                )}
+              </section>
+
+              <div className="proof-strip">
+                {marketVenues.length ? (
+                  marketVenues.map((venue) => (
+                    <ProofCard
+                      key={venue.venue}
+                      title={venue.venue}
+                      detail={`${venue.count} ${copy.watch.venueRoutes} · ${venue.blockedCount} ${copy.watch.blockedNow}`}
+                    />
+                  ))
+                ) : (
+                  <ProofCard title={copy.watch.venuePressure} detail={copy.common.notLoaded} />
+                )}
+              </div>
+
+              <section className="info-card">
+                <span className="panel-kicker">{copy.watch.riskThemes}</span>
+                <p>{copy.watch.riskThemesBody}</p>
+                <div className="chip-wrap">
+                  {marketThemes.length ? (
+                    marketThemes.map((theme) => (
+                      <span
+                        key={theme.title}
+                        className={`reason-chip ${
+                          theme.status === "blocked"
+                            ? "blocking"
+                            : theme.status === "warn"
+                              ? "warning"
+                              : "muted"
+                        }`}
+                      >
+                        {theme.title} · {theme.count}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="reason-chip muted">{copy.common.notLoaded}</span>
+                  )}
+                </div>
+              </section>
+
+              <section className="feed-list">
+                {(feedSnapshot?.items ?? []).length ? (
+                  feedSnapshot!.items.map((item) => (
+                    <article
+                      className={`feed-item-card ${selectedFeedItem?.bundleId === item.bundleId ? "active" : ""}`}
+                      key={item.bundleId}
+                      onClick={() => setSelectedFeedItem(item)}
+                    >
+                      <div className="compact-route-head">
+                        <strong>{item.headline}</strong>
+                        <span className={`status-tag ${item.severity === "critical" ? "alert" : item.posture === "degraded" ? "warning" : "safe"}`}>
+                          {item.severity}
+                        </span>
+                      </div>
+                      <p>{item.summary}</p>
+                      <div className="report-grid">
+                        <SummaryPill label={copy.cards.profile} value={copy.profiles[item.profile]} />
+                        <SummaryPill label={copy.cards.execution} value={item.executionRecommendation} />
+                        <SummaryPill label={copy.cards.blockedRoute} value={item.blockedRoute ? copy.common.yes : copy.common.no} />
+                      </div>
+                    </article>
+                  ))
+                ) : (
+                  <div className="empty-state">
+                    <strong>{copy.watch.noFeed}</strong>
+                    <p>{copy.watch.noFeedBody}</p>
+                  </div>
+                )}
+              </section>
+
+              {selectedFeedItem ? (
+                <section className="info-card">
+                  <span className="panel-kicker">{copy.watch.selectedIncident}</span>
+                  <h2>{selectedFeedItem.headline}</h2>
+                  <p>{selectedFeedItem.summary}</p>
+                  <div className="report-grid">
+                    <SummaryPill label={copy.cards.profile} value={copy.profiles[selectedFeedItem.profile]} />
+                    <SummaryPill label={copy.cards.severity} value={selectedFeedItem.severity} />
+                    <SummaryPill label={copy.cards.posture} value={selectedFeedItem.posture} />
+                    <SummaryPill label={copy.cards.blockedRoute} value={selectedFeedItem.blockedRoute ? copy.common.yes : copy.common.no} />
+                  </div>
+                  <div className="report-list">
+                    <strong>{copy.cards.nextActions}</strong>
+                    <ul>
+                      {selectedFeedItem.nextActions.map((action) => (
+                        <li key={action}>{action}</li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div className="execution-actions watch-actions">
+                    <button
+                      type="button"
+                      className="primary-button"
+                      onClick={() => armProtectFromFeedItem(selectedFeedItem)}
+                    >
+                      {copy.watch.openProtectDesk}
+                    </button>
+                  </div>
+                </section>
+              ) : null}
+
+              <section className="info-card">
+                <span className="panel-kicker">{copy.watch.optionalWatchlist}</span>
+                <p>{copy.watch.optionalWatchlistBody}</p>
                 <div className="signal-controls">
                   <InlineAdder
                     label={copy.watch.addToken}
@@ -1381,20 +1937,48 @@ export default function App() {
                       <article className="feed-item-card" key={`${match.kind}:${match.value}`}>
                         <div className="compact-route-head">
                           <strong>{match.value}</strong>
-                          <span className={`status-tag ${match.highestSeverity === "critical" ? "alert" : match.highestSeverity === "elevated" ? "warning" : "safe"}`}>
+                          <span
+                            className={`status-tag ${
+                              match.highestSeverity === "critical"
+                                ? "alert"
+                                : match.highestSeverity === "elevated"
+                                  ? "warning"
+                                  : "safe"
+                            }`}
+                          >
                             {match.highestSeverity ?? copy.common.none}
                           </span>
                         </div>
-                        <p>{match.overlapCount} {copy.watch.overlap}</p>
+                        <p>
+                          {match.overlapCount} {copy.watch.overlap}
+                        </p>
                         <div className="chip-wrap">
                           {match.kind === "token" ? (
-                            <button type="button" className="chip-button" onClick={() => removeWatchlistItem("tokens", match.value)}>× {match.value}</button>
+                            <button
+                              type="button"
+                              className="chip-button"
+                              onClick={() => removeWatchlistItem("tokens", match.value)}
+                            >
+                              × {match.value}
+                            </button>
                           ) : null}
                           {match.kind === "pair" ? (
-                            <button type="button" className="chip-button" onClick={() => removeWatchlistItem("pairs", match.value)}>× {match.value}</button>
+                            <button
+                              type="button"
+                              className="chip-button"
+                              onClick={() => removeWatchlistItem("pairs", match.value)}
+                            >
+                              × {match.value}
+                            </button>
                           ) : null}
                           {match.kind === "venue" ? (
-                            <button type="button" className="chip-button" onClick={() => removeWatchlistItem("venues", match.value)}>× {match.value}</button>
+                            <button
+                              type="button"
+                              className="chip-button"
+                              onClick={() => removeWatchlistItem("venues", match.value)}
+                            >
+                              × {match.value}
+                            </button>
                           ) : null}
                         </div>
                       </article>
@@ -1407,78 +1991,13 @@ export default function App() {
                   </div>
                 )}
               </section>
-
-              {importedBundle ? (
-                <>
-                  <IncidentPackCard incidentPack={importedBundle.incidentPack} labels={copy.cards} />
-                  <DecisionReportCard report={importedBundle.decisionReport} labels={copy.cards} />
-                  <ActionPlanCard plan={importedBundle.panicActionPlan} labels={copy.cards} />
-                </>
-              ) : null}
-
-              <section className="info-card">
-                <span className="panel-kicker">{copy.watch.incidentBoard}</span>
-                <p>{copy.watch.title}</p>
-              </section>
-
-              <section className="feed-list">
-                {(feedSnapshot?.items ?? []).length ? (
-                  feedSnapshot!.items.map((item) => (
-                    <article
-                      className={`feed-item-card ${selectedFeedItem?.bundleId === item.bundleId ? "active" : ""}`}
-                      key={item.bundleId}
-                      onClick={() => setSelectedFeedItem(item)}
-                    >
-                      <div className="compact-route-head">
-                        <strong>{item.headline}</strong>
-                        <span className={`status-tag ${item.severity === "critical" ? "alert" : item.posture === "degraded" ? "warning" : "safe"}`}>
-                          {item.severity}
-                        </span>
-                      </div>
-                      <p>{item.summary}</p>
-                      <div className="report-grid">
-                        <SummaryPill label={copy.cards.profile} value={copy.profiles[item.profile]} />
-                        <SummaryPill label={copy.cards.execution} value={item.executionRecommendation} />
-                        <SummaryPill label={copy.cards.blockedRoute} value={item.blockedRoute ? "yes" : "no"} />
-                      </div>
-                    </article>
-                  ))
-                ) : (
-                  <div className="empty-state">
-                    <strong>{copy.watch.noFeed}</strong>
-                    <p>{copy.watch.noFeedBody}</p>
-                  </div>
-                )}
-              </section>
-
-              {selectedFeedItem ? (
-                <section className="info-card">
-                  <span className="panel-kicker">{copy.watch.selectedIncident}</span>
-                  <h2>{selectedFeedItem.headline}</h2>
-                  <p>{selectedFeedItem.summary}</p>
-                  <div className="report-grid">
-                    <SummaryPill label={copy.cards.profile} value={copy.profiles[selectedFeedItem.profile]} />
-                    <SummaryPill label={copy.cards.severity} value={selectedFeedItem.severity} />
-                    <SummaryPill label={copy.cards.posture} value={selectedFeedItem.posture} />
-                    <SummaryPill label={copy.cards.blockedRoute} value={selectedFeedItem.blockedRoute ? "yes" : "no"} />
-                  </div>
-                  <div className="report-list">
-                    <strong>{copy.cards.nextActions}</strong>
-                    <ul>
-                      {selectedFeedItem.nextActions.map((action) => (
-                        <li key={action}>{action}</li>
-                      ))}
-                    </ul>
-                  </div>
-                </section>
-              ) : null}
             </div>
           ) : null}
 
           {activePanel === "settings" ? (
             <div className="settings-panel">
               <div className="hero-grid compact">
-                <MetricCard label="Data mode" value={dataMode === "demo" ? "Seeded demo" : "Live APIs"} />
+                <MetricCard label={copy.common.dataMode} value={dataMode === "demo" ? copy.common.labMode : copy.common.liveApis} />
                 <MetricCard
                   label="Flint kernel"
                   value="Devnet verified"
@@ -1487,13 +2006,13 @@ export default function App() {
                 <MetricCard label="Swap execution path" value="Jupiter Metis" />
                 <MetricCard label="Panic order path" value="Jupiter Trigger V1" />
                 <MetricCard label="Policy" value={policy.label} detail={formatPolicySummary(policy)} />
-                <MetricCard label="Current panel" value={activePanel} />
+                <MetricCard label={copy.common.currentPanel} value={activePanel} />
                 <MetricCard label="Incident severity" value={incidentPack.severity} />
                 <MetricCard label={copy.settings.actionProfile} value={copy.profiles[actionProfileId]} />
               </div>
               <div className="signal-panel">
                 <div className="signal-head">
-                  <strong>Execution settings</strong>
+                  <strong>{copy.settings.executionSettings}</strong>
                 </div>
                 <SlippageField
                   value={form.slippageBps}
@@ -1516,11 +2035,37 @@ export default function App() {
                       className={`chip-button ${actionProfileId === profileId ? "active" : ""}`}
                       onClick={() => setActionProfileId(profileId)}
                     >
-                      {ACTION_PROFILES[profileId].label}
+                      {copy.profiles[profileId]}
                     </button>
                   ))}
                 </div>
+                <ModeToggle
+                  dataMode={dataMode}
+                  onChange={handleDataModeChange}
+                  activeScenarioId={demoScenario}
+                  onScenarioChange={activateDemoScenario}
+                  labels={copy.common}
+                />
               </div>
+
+              <section className="info-card">
+                <span className="panel-kicker">{copy.common.labMode}</span>
+                <h2>{copy.watch.importBundle}</h2>
+                <p>{copy.watch.importBody}</p>
+                <label className="proof-card upload-card settings-upload-card">
+                  <strong>{copy.watch.importBundle}</strong>
+                  <p>{copy.watch.importBody}</p>
+                  <input type="file" accept="application/json" onChange={handleImportBundle} />
+                </label>
+              </section>
+
+              {importedBundle ? (
+                <>
+                  <IncidentPackCard incidentPack={importedBundle.incidentPack} labels={copy.cards} />
+                  <DecisionReportCard report={importedBundle.decisionReport} labels={copy.cards} />
+                  <ActionPlanCard plan={importedBundle.panicActionPlan} labels={copy.cards} />
+                </>
+              ) : null}
             </div>
           ) : null}
         </section>
@@ -1747,6 +2292,111 @@ function ActionPlanCard({
   );
 }
 
+function TradeDecisionCard({
+  comparison,
+  assessment,
+  outputQuote,
+  outputMint,
+  copy,
+}: {
+  comparison: QuoteComparison;
+  assessment: QuoteComparison["baseAssessment"] | QuoteComparison["safeAssessment"];
+  outputQuote: QuoteComparison["baseQuote"] | QuoteComparison["safeQuote"] | null;
+  outputMint: string;
+  copy: ReturnType<typeof localeCopy>;
+}) {
+  const variant =
+    comparison.executionTarget === "safe"
+      ? {
+          title: copy.trade.safeRouteReadyTitle,
+          body: copy.trade.safeRouteReadyBody,
+          tone: "warning",
+        }
+      : comparison.executionTarget === "none"
+        ? {
+            title: copy.trade.executionBlockedTitle,
+            body: copy.trade.executionBlockedBody,
+            tone: "alert",
+          }
+        : {
+            title: copy.trade.routeReadyTitle,
+            body: copy.trade.routeReadyBody,
+            tone: "safe",
+          };
+
+  return (
+    <section className="execution-bar trade-decision-bar">
+      <div>
+        <span className="panel-kicker">{copy.trade.liveRouteBoard}</span>
+        <strong>{variant.title}</strong>
+        <p>{variant.body}</p>
+      </div>
+      <div className="trade-decision-side">
+        <span className={`status-tag ${variant.tone}`}>{assessment?.status ?? "unknown"}</span>
+        <div className="mini-metrics">
+          <div className="mini-metric">
+            <span>{copy.trade.routeScore}</span>
+            <strong>{assessment?.score ?? 0}</strong>
+          </div>
+          <div className="mini-metric">
+            <span>{copy.trade.receive}</span>
+            <strong>{outputQuote ? formatAtomic(outputQuote.outAmount, outputMint) : copy.common.none}</strong>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function RouteAssessmentCard({
+  title,
+  assessment,
+  quote,
+  outputMint,
+  highlighted = false,
+  copy,
+}: {
+  title: string;
+  assessment: QuoteComparison["baseAssessment"];
+  quote: QuoteComparison["baseQuote"];
+  outputMint: string;
+  highlighted?: boolean;
+  copy: ReturnType<typeof localeCopy>;
+}) {
+  const venues = dedupeStrings(quote.routePlan.map((hop) => hop.swapInfo.label || "unknown"));
+  return (
+    <section className={`info-card route-card${highlighted ? " highlighted" : ""}`}>
+      <span className="panel-kicker">{title}</span>
+      <h2>{describeAssessment(assessment, copy)}</h2>
+      <div className="report-grid">
+        <SummaryPill label={copy.trade.routeScore} value={String(assessment.score)} />
+        <SummaryPill label={copy.trade.priceImpact} value={`${Number(quote.priceImpactPct).toFixed(2)}%`} />
+        <SummaryPill label={copy.trade.hops} value={String(quote.routePlan.length)} />
+        <SummaryPill label={copy.trade.receive} value={formatAtomic(quote.outAmount, outputMint)} />
+      </div>
+      <div className="chip-wrap">
+        {venues.map((venue) => (
+          <span key={`${title}:${venue}`} className="chip-button active">
+            {venue}
+          </span>
+        ))}
+      </div>
+      <div className="reason-list compact">
+        {assessment.reasons.length ? (
+          assessment.reasons.slice(0, 4).map((reason) => (
+            <ReasonCard key={`${title}:${reason.id}`} reason={reason} />
+          ))
+        ) : (
+          <div className="empty-state">
+            <strong>{copy.trade.clearRouteTitle}</strong>
+            <p>{copy.trade.clearRouteBody}</p>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
 
 function OrderTable({
   assessments,
@@ -1776,10 +2426,17 @@ function OrderTable({
     );
   }
 
+  const sortedAssessments = [...assessments].sort((left, right) => {
+    if (left.candidate !== right.candidate) {
+      return left.candidate ? -1 : 1;
+    }
+    return right.reasons.length - left.reasons.length;
+  });
+
   return (
     <div className="order-list">
-      {assessments.map((assessment) => (
-        <label className="order-card" key={assessment.order.orderKey}>
+      {sortedAssessments.map((assessment) => (
+        <label className={`order-card${assessment.candidate ? " candidate" : ""}`} key={assessment.order.orderKey}>
           <div className="order-head">
             <input
               type="checkbox"
@@ -1800,9 +2457,14 @@ function OrderTable({
             </span>
           </div>
           <div className="order-metrics">
-            <span>make {assessment.order.rawMakingAmount}</span>
-            <span>take {assessment.order.rawTakingAmount}</span>
+            <span>
+              make {formatAtomic(assessment.order.rawMakingAmount, assessment.order.inputMint)}
+            </span>
+            <span>
+              take {formatAtomic(assessment.order.rawTakingAmount, assessment.order.outputMint)}
+            </span>
             <span>slippage {assessment.order.slippageBps ?? "n/a"} bps</span>
+            <span>venue {assessment.order.venue ?? "unknown"}</span>
           </div>
           <div className="order-reasons">
             {assessment.reasons.length ? (
@@ -1992,11 +2654,16 @@ function ModeToggle({
   onChange,
   activeScenarioId,
   onScenarioChange,
+  labels,
 }: {
   dataMode: GuardDataMode;
   onChange: (next: GuardDataMode) => void;
   activeScenarioId: DemoScenarioId;
   onScenarioChange: (next: DemoScenarioId) => void;
+  labels: {
+    seededDemo: string;
+    liveApis: string;
+  };
 }) {
   return (
     <>
@@ -2008,7 +2675,7 @@ function ModeToggle({
             type="button"
             onClick={() => onChange(mode)}
           >
-            {mode === "demo" ? "Seeded demo" : "Live APIs"}
+            {mode === "demo" ? labels.seededDemo : labels.liveApis}
           </button>
         ))}
       </div>
@@ -2177,8 +2844,28 @@ function describeComparison(comparison: QuoteComparison) {
   return "Best route passed policy. Flint would allow execution on the base route.";
 }
 
+function describeAssessment(
+  assessment: QuoteComparison["baseAssessment"],
+  copy: ReturnType<typeof localeCopy>
+) {
+  switch (assessment.status) {
+    case "blocked":
+      return copy.trade.executionBlockedTitle;
+    case "warn":
+      return copy.trade.reviewRouteTitle;
+    case "safe":
+      return copy.trade.routeReadyTitle;
+  }
+}
+
 function dedupeStrings(values: string[]) {
   return Array.from(new Set(values.filter(Boolean)));
+}
+
+function normalizeWatchPair(value: string) {
+  if (!value.includes("::")) return value.trim();
+  const [left, right] = value.split("::");
+  return canonicalPairKey(left, right);
 }
 
 function CanyonLandscape() {
