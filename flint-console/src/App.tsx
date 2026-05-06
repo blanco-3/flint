@@ -109,8 +109,8 @@ const STORAGE_KEYS = {
 };
 
 const STORAGE_VERSION = "live-product-v2";
-const QUOTE_REFRESH_MS = 15000;
-const WATCH_REFRESH_MS = 20000;
+const QUOTE_REFRESH_MS = 30000;
+const WATCH_REFRESH_MS = 45000;
 
 const DEFAULT_FORM: QuoteFormState = {
   inputMint: TOKEN_OPTIONS[0].mint,
@@ -119,7 +119,8 @@ const DEFAULT_FORM: QuoteFormState = {
   slippageBps: 75,
 };
 
-const AUTO_QUOTE_DEBOUNCE_MS = 450;
+const AUTO_QUOTE_DEBOUNCE_MS = 900;
+const COUNTDOWN_TICK_MS = 5000;
 
 export default function App() {
   const [activePanel, setActivePanel] = useState<
@@ -236,12 +237,12 @@ export default function App() {
 
   const quoteCountdownSeconds = useMemo(() => {
     if (!quoteExpiresAt) return null;
-    return Math.max(0, Math.ceil((quoteExpiresAt - clockNow) / 1000));
+    return roundCountdownSeconds(quoteExpiresAt - clockNow);
   }, [quoteExpiresAt, clockNow]);
 
   const watchCountdownSeconds = useMemo(() => {
     if (!watchExpiresAt) return null;
-    return Math.max(0, Math.ceil((watchExpiresAt - clockNow) / 1000));
+    return roundCountdownSeconds(watchExpiresAt - clockNow);
   }, [watchExpiresAt, clockNow]);
 
   const heroMarketItem = marketBoard[0] ?? null;
@@ -413,6 +414,7 @@ export default function App() {
 
   useEffect(() => {
     if (activePanel !== "watch" || dataMode !== "live") return;
+    if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
     if (!marketRefreshedAt || !feedSnapshot) {
       refreshWatchSurface();
     }
@@ -445,7 +447,7 @@ export default function App() {
     if (!quoteExpiresAt && !watchExpiresAt) return;
     const timer = window.setInterval(() => {
       setClockNow(Date.now());
-    }, 1000);
+    }, COUNTDOWN_TICK_MS);
     return () => window.clearInterval(timer);
   }, [quoteExpiresAt, watchExpiresAt]);
 
@@ -453,6 +455,7 @@ export default function App() {
     if (
       activePanel !== "trade" ||
       dataMode !== "live" ||
+      (typeof document !== "undefined" && document.visibilityState !== "visible") ||
       !comparison ||
       !quoteExpiresAt ||
       clockNow < quoteExpiresAt ||
@@ -641,6 +644,9 @@ export default function App() {
 
   useEffect(() => {
     if (activePanel !== "trade" || dataMode !== "live" || tokenSelectorSide) {
+      return;
+    }
+    if (typeof document !== "undefined" && document.visibilityState !== "visible") {
       return;
     }
     if (!form.amount.trim()) {
@@ -3197,6 +3203,12 @@ function formatCountdown(seconds: number) {
   return `${String(Math.floor(safeSeconds / 60)).padStart(2, "0")}:${String(
     safeSeconds % 60
   ).padStart(2, "0")}`;
+}
+
+function roundCountdownSeconds(remainingMs: number) {
+  const seconds = Math.max(0, Math.ceil(remainingMs / 1000));
+  if (seconds <= 10) return seconds;
+  return Math.ceil(seconds / 5) * 5;
 }
 
 function chooseQuoteDirection(pair: {
