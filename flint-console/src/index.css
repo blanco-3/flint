@@ -783,6 +783,7 @@ body {
   grid-template-columns: repeat(12, minmax(0, 1fr));
   gap: 10px;
   margin-top: 14px;
+  align-items: stretch;
 }
 
 .heatmap-tile {
@@ -794,53 +795,138 @@ body {
   flex-direction: column;
   gap: 8px;
   cursor: pointer;
-  transition: transform 140ms, border-color 140ms, opacity 140ms;
+  transition: transform 180ms, border-color 180ms, opacity 180ms, box-shadow 180ms;
+  color: var(--text-0);
+  overflow: hidden;
+  position: relative;
+  isolation: isolate;
 }
 
-.heatmap-tile.small { grid-column: span 3; min-height: 110px; }
-.heatmap-tile.medium { grid-column: span 4; min-height: 130px; }
-.heatmap-tile.large { grid-column: span 6; min-height: 150px; }
+.heatmap-copy {
+  margin-top: 8px;
+  color: var(--text-2);
+}
+
+.heatmap-tile::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at top right, rgba(255,255,255,0.14), transparent 38%),
+    linear-gradient(135deg, rgba(255,255,255,0.08), transparent 55%);
+  opacity: 0.6;
+  z-index: -1;
+}
+
+.heatmap-tile.small { grid-column: span 2; min-height: 118px; }
+.heatmap-tile.medium { grid-column: span 3; min-height: 148px; }
+.heatmap-tile.large { grid-column: span 4; min-height: 178px; }
+
+.heatmap-tile.hero {
+  grid-column: span 6;
+  min-height: 236px;
+  padding: 18px;
+  box-shadow:
+    0 18px 48px rgba(0, 0, 0, 0.28),
+    inset 0 0 0 1px rgba(255,255,255,0.06);
+}
 
 .heatmap-tile.clear {
-  background: linear-gradient(180deg, rgba(90, 144, 48, 0.10) 0%, rgba(255,255,255,0.02) 100%);
+  background: linear-gradient(180deg, rgba(78, 108, 56, 0.82) 0%, rgba(34, 43, 24, 0.95) 100%);
 }
 
 .heatmap-tile.watch {
-  background: linear-gradient(180deg, rgba(192, 136, 32, 0.12) 0%, rgba(255,255,255,0.02) 100%);
+  background: linear-gradient(180deg, rgba(150, 108, 20, 0.90) 0%, rgba(74, 47, 12, 0.96) 100%);
 }
 
 .heatmap-tile.elevated,
 .heatmap-tile.warn {
-  background: linear-gradient(180deg, rgba(224, 96, 24, 0.18) 0%, rgba(255,255,255,0.02) 100%);
+  background: linear-gradient(180deg, rgba(194, 82, 20, 0.92) 0%, rgba(96, 31, 10, 0.97) 100%);
 }
 
 .heatmap-tile.critical,
 .heatmap-tile.blocked {
-  background: linear-gradient(180deg, rgba(208, 56, 24, 0.24) 0%, rgba(255,255,255,0.02) 100%);
-  border-color: rgba(208, 56, 24, 0.3);
+  background: linear-gradient(180deg, rgba(163, 24, 24, 0.95) 0%, rgba(72, 12, 12, 0.98) 100%);
+  border-color: rgba(255, 148, 120, 0.4);
 }
 
 .heatmap-tile.active {
-  transform: translateY(-1px);
+  transform: translateY(-2px) scale(1.01);
   border-color: var(--accent);
+  box-shadow: 0 14px 38px rgba(0, 0, 0, 0.26);
+}
+
+.heatmap-tile:hover {
+  transform: translateY(-2px);
+}
+
+.heatmap-eyebrow {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(255, 244, 232, 0.75);
+}
+
+.heatmap-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
 }
 
 .heatmap-label {
-  font-size: 13px;
-  color: var(--text-1);
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff5ea;
 }
 
 .heatmap-tile strong {
   font-size: 34px;
   line-height: 1;
   font-variant-numeric: tabular-nums;
+  color: #fffaf4;
 }
 
 .heatmap-badge {
   font-size: 11px;
-  color: var(--text-2);
+  color: rgba(255, 244, 232, 0.82);
   text-transform: uppercase;
   letter-spacing: 0.08em;
+}
+
+.heatmap-tile p {
+  font-size: 12px;
+  line-height: 1.45;
+  color: rgba(255, 244, 232, 0.82);
+}
+
+.heatmap-venue {
+  margin-top: auto;
+  font-size: 11px;
+  color: rgba(255, 244, 232, 0.62);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+@keyframes heroPulse {
+  0%, 100% {
+    box-shadow:
+      0 18px 48px rgba(0, 0, 0, 0.28),
+      inset 0 0 0 1px rgba(255,255,255,0.06),
+      0 0 0 0 rgba(255, 142, 98, 0.18);
+  }
+  50% {
+    box-shadow:
+      0 20px 56px rgba(0, 0, 0, 0.34),
+      inset 0 0 0 1px rgba(255,255,255,0.08),
+      0 0 0 8px rgba(255, 142, 98, 0);
+  }
+}
+
+.heatmap-tile.hero.critical,
+.heatmap-tile.hero.blocked {
+  animation: heroPulse 2.8s ease-in-out infinite;
 }
 
 .leaderboard-list {
@@ -1667,6 +1753,7 @@ body {
   .watch-heatmap {
     grid-template-columns: repeat(6, minmax(0, 1fr));
   }
+  .heatmap-tile.hero,
   .heatmap-tile.large {
     grid-column: span 6;
   }
@@ -1684,9 +1771,11 @@ body {
   .watch-heatmap {
     grid-template-columns: 1fr 1fr;
   }
+  .heatmap-tile.hero,
   .heatmap-tile.large,
   .heatmap-tile.medium,
   .heatmap-tile.small {
     grid-column: span 1;
+    min-height: 132px;
   }
 }

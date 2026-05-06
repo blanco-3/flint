@@ -244,6 +244,9 @@ export default function App() {
     return Math.max(0, Math.ceil((watchExpiresAt - clockNow) / 1000));
   }, [watchExpiresAt, clockNow]);
 
+  const heroMarketItem = marketBoard[0] ?? null;
+  const secondaryHeatmapItems = marketBoard.slice(1, 8);
+
   const incidentLog = useMemo(
     () =>
       activityLog.filter((entry) => entry.kind === "incident" || entry.severity !== "info"),
@@ -1774,8 +1777,35 @@ export default function App() {
               {marketBoard.length ? (
                 <section className="info-card">
                   <span className="panel-kicker">Risk Heatmap</span>
+                  <p className="heatmap-copy">
+                    Size tracks market importance. Color tracks risk. Start with the biggest red tile.
+                  </p>
                   <div className="watch-heatmap">
-                    {marketBoard.slice(0, 8).map((item) => (
+                    {heroMarketItem ? (
+                      <button
+                        key={`heatmap:hero:${heroMarketItem.pairKey}`}
+                        type="button"
+                        className={`heatmap-tile hero ${heroMarketItem.riskLevel} ${
+                          selectedMarketItem?.pairKey === heroMarketItem.pairKey ? " active" : ""
+                        }`}
+                        onClick={() => setSelectedMarketItem(heroMarketItem)}
+                      >
+                        <span className="heatmap-eyebrow">Top Risk Now</span>
+                        <div className="heatmap-head">
+                          <span className="heatmap-label">{heroMarketItem.pairKey}</span>
+                          <span className="heatmap-badge">
+                            {heroMarketItem.badge ?? heroMarketItem.riskLevel}
+                          </span>
+                        </div>
+                        <strong>{heroMarketItem.score}</strong>
+                        <p>{heroMarketItem.reasonTitles[0] ?? heroMarketItem.riskSummary}</p>
+                        <span className="heatmap-venue">
+                          {heroMarketItem.venues[0] ?? heroMarketItem.venue}
+                        </span>
+                      </button>
+                    ) : null}
+
+                    {secondaryHeatmapItems.map((item) => (
                       <button
                         key={`heatmap:${item.pairKey}`}
                         type="button"
@@ -1784,9 +1814,13 @@ export default function App() {
                         }`}
                         onClick={() => setSelectedMarketItem(item)}
                       >
-                        <span className="heatmap-label">{item.pairKey}</span>
+                        <div className="heatmap-head">
+                          <span className="heatmap-label">{item.pairKey}</span>
+                          <span className="heatmap-badge">{item.badge ?? item.riskLevel}</span>
+                        </div>
                         <strong>{item.score}</strong>
-                        <span className="heatmap-badge">{item.badge ?? item.riskLevel}</span>
+                        <p>{item.reasonTitles[0] ?? item.riskSummary}</p>
+                        <span className="heatmap-venue">{item.venues[0] ?? item.venue}</span>
                       </button>
                     ))}
                   </div>
