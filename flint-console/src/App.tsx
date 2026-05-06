@@ -111,6 +111,7 @@ const STORAGE_KEYS = {
 const STORAGE_VERSION = "live-product-v2";
 const QUOTE_REFRESH_MS = 30000;
 const WATCH_REFRESH_MS = 45000;
+const PROTECT_REFRESH_MS = 60000;
 
 const DEFAULT_FORM: QuoteFormState = {
   inputMint: TOKEN_OPTIONS[0].mint,
@@ -167,6 +168,7 @@ export default function App() {
   const [orderError, setOrderError] = useState<string | null>(null);
   const [isLoadingOrders, setIsLoadingOrders] = useState(false);
   const [isCancellingOrders, setIsCancellingOrders] = useState(false);
+  const [ordersRefreshedAt, setOrdersRefreshedAt] = useState<string | null>(null);
   const [feedSnapshot, setFeedSnapshot] = useState<SafetyFeedSnapshot | null>(null);
   const [feedError, setFeedError] = useState<string | null>(null);
   const [isLoadingFeed, setIsLoadingFeed] = useState(false);
@@ -479,13 +481,19 @@ export default function App() {
     if (
       activePanel !== "protect" ||
       dataMode !== "live" ||
+      (typeof document !== "undefined" && document.visibilityState !== "visible") ||
       !walletAddress ||
-      ordersLoaded ||
       isLoadingOrders
     ) {
       return;
     }
-    refreshProtectSurface();
+    if (!ordersLoaded) {
+      refreshProtectSurface();
+    }
+    const timer = window.setInterval(() => {
+      refreshProtectSurface();
+    }, PROTECT_REFRESH_MS);
+    return () => window.clearInterval(timer);
   }, [activePanel, dataMode, walletAddress, ordersLoaded, isLoadingOrders]);
 
   useEffect(() => {
@@ -800,6 +808,8 @@ export default function App() {
       const response = await fetchTriggerOrders(walletAddress);
       setOrders(response.orders);
       setOrdersLoaded(true);
+      setOrdersRefreshedAt(new Date().toISOString());
+      setOrderError(null);
       appendLog(setActivityLog, {
         title: "Open trigger orders loaded",
         detail: `${response.orders.length} active order(s)`,
@@ -1492,6 +1502,10 @@ export default function App() {
                         </section>
                       )}
                     </div>
+                    <section className="info-card trade-hint-card">
+                      <span className="panel-kicker">{copy.trade.dataSource}</span>
+                      <p>{copy.trade.dataSourceBody}</p>
+                    </section>
                   </>
                 ) : (
                   <section className="info-card trade-hint-card">
@@ -1510,6 +1524,11 @@ export default function App() {
                 <div>
                   <span className="panel-kicker">{copy.protect.kicker}</span>
                   <h2>{copy.protect.title}</h2>
+                  <p>
+                    {ordersRefreshedAt
+                      ? `${copy.protect.lastUpdated}: ${new Date(ordersRefreshedAt).toLocaleTimeString()} · ${copy.protect.autoRefresh}`
+                      : copy.protect.autoRefresh}
+                  </p>
                 </div>
                 <button className="ghost-button" onClick={() => void handleLoadOrders()}>
                   {isLoadingOrders
@@ -1782,7 +1801,7 @@ export default function App() {
 
               {marketBoard.length ? (
                 <section className="info-card">
-                  <span className="panel-kicker">Risk Heatmap</span>
+                  <span className="panel-kicker">{copy.watch.heatmapTitle}</span>
                   <p className="heatmap-copy">
                     Size tracks market importance. Color tracks risk. Start with the biggest red tile.
                   </p>
@@ -1796,7 +1815,7 @@ export default function App() {
                         }`}
                         onClick={() => setSelectedMarketItem(heroMarketItem)}
                       >
-                        <span className="heatmap-eyebrow">Top Risk Now</span>
+                        <span className="heatmap-eyebrow">{copy.watch.topRiskNow}</span>
                         <div className="heatmap-head">
                           <span className="heatmap-label">{heroMarketItem.pairKey}</span>
                           <span className="heatmap-badge">
@@ -1956,6 +1975,68 @@ export default function App() {
                 )}
               </section>
 
+              {selectedMarketItem ? (
+                <section className="info-card">
+                  <span className="panel-kicker">{copy.watch.selectedPoolDetail}</span>
+                  <h2>{selectedMarketItem.pairKey}</h2>
+                  <p>{selectedMarketItem.riskSummary}</p>
+                  <div className="report-grid">
+                    <SummaryPill label={copy.watch.riskScore} value={String(selectedMarketItem.score)} />
+                    <SummaryPill label={copy.watch.riskLevel} value={selectedMarketItem.riskLevel} />
+                    <SummaryPill label={copy.watch.importance} value={selectedMarketItem.importanceBucket} />
+                    <SummaryPill
+                      label={copy.watch.marketStatus}
+                      value={selectedMarketItem.badge ?? selectedMarketItem.status}
+                    />
+                  </div>
+                  <div className="reason-list compact">
+                    {selectedMarketItem.factors.slice(0, 4).map((factor) => (
+                      <article className="reason-card warning" key={`${selectedMarketItem.pairKey}:${factor.id}`}>
+                        <div className="reason-head">
+                          <strong>{factor.title}</strong>
+                          <span>{factor.score}</span>
+                        </div>
+                        <p>{factor.detail}</p>
+                      </article>
+                    ))}
+                  </div>
+                  <div className="execution-actions watch-actions">
+                    <button
+                      type="button"
+                      className="ghost-button"
+                      onClick={() => {
+                        setForm((current) => ({
+                          ...current,
+                          inputMint: selectedMarketItem.inputMint,
+                          outputMint: selectedMarketItem.outputMint,
+                        }));
+                        setActivePanel("trade");
+                      }}
+                    >
+                      {copy.watch.openTrade}
+                    </button>
+                    <button
+                      type="button"
+                      className="primary-button"
+                      onClick={() => {
+                        setSignals((current) => ({
+                          ...current,
+                          pairs: dedupeStrings(
+                            current.pairs.concat(
+                              canonicalPairKey(selectedMarketItem.inputMint, selectedMarketItem.outputMint)
+                            )
+                          ),
+                        }));
+                        setPanicMode(true);
+                        setActivePanel("protect");
+                      }}
+                    >
+                      {copy.watch.openProtectDesk}
+                    </button>
+                  </div>
+                </section>
+              ) : null}
+
               <section className="feed-list">
                 {(feedSnapshot?.items ?? []).length ? (
                   feedSnapshot!.items.map((item) => (
@@ -2091,68 +2172,6 @@ export default function App() {
                   <DecisionReportCard report={importedBundle.decisionReport} labels={copy.cards} />
                   <ActionPlanCard plan={importedBundle.panicActionPlan} labels={copy.cards} />
                 </>
-              ) : null}
-
-              {selectedMarketItem ? (
-                <section className="info-card">
-                  <span className="panel-kicker">Selected Pool Detail</span>
-                  <h2>{selectedMarketItem.pairKey}</h2>
-                  <p>{selectedMarketItem.riskSummary}</p>
-                  <div className="report-grid">
-                    <SummaryPill label="Risk score" value={String(selectedMarketItem.score)} />
-                    <SummaryPill label="Risk level" value={selectedMarketItem.riskLevel} />
-                    <SummaryPill label="Importance" value={selectedMarketItem.importanceBucket} />
-                    <SummaryPill
-                      label={copy.watch.marketStatus}
-                      value={selectedMarketItem.badge ?? selectedMarketItem.status}
-                    />
-                  </div>
-                  <div className="reason-list compact">
-                    {selectedMarketItem.factors.slice(0, 4).map((factor) => (
-                      <article className="reason-card warning" key={`${selectedMarketItem.pairKey}:${factor.id}`}>
-                        <div className="reason-head">
-                          <strong>{factor.title}</strong>
-                          <span>{factor.score}</span>
-                        </div>
-                        <p>{factor.detail}</p>
-                      </article>
-                    ))}
-                  </div>
-                  <div className="execution-actions watch-actions">
-                    <button
-                      type="button"
-                      className="ghost-button"
-                      onClick={() => {
-                        setForm((current) => ({
-                          ...current,
-                          inputMint: selectedMarketItem.inputMint,
-                          outputMint: selectedMarketItem.outputMint,
-                        }));
-                        setActivePanel("trade");
-                      }}
-                    >
-                      Open in Trade
-                    </button>
-                    <button
-                      type="button"
-                      className="primary-button"
-                      onClick={() => {
-                        setSignals((current) => ({
-                          ...current,
-                          pairs: dedupeStrings(
-                            current.pairs.concat(
-                              canonicalPairKey(selectedMarketItem.inputMint, selectedMarketItem.outputMint)
-                            )
-                          ),
-                        }));
-                        setPanicMode(true);
-                        setActivePanel("protect");
-                      }}
-                    >
-                      Open in Protect
-                    </button>
-                  </div>
-                </section>
               ) : null}
             </div>
           ) : null}

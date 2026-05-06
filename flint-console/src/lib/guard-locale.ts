@@ -69,6 +69,8 @@ export const COPY = {
       tokenModalClose: "Close",
       tokenModalSearch: "Search",
       tokenModalPlaceholder: "Search symbol, name, or mint",
+      dataSource: "Data sources",
+      dataSourceBody: "Quotes come from Jupiter. Pool liquidity and trade flow come from DexScreener.",
     },
     protect: {
       kicker: "Panic desk",
@@ -105,6 +107,8 @@ export const COPY = {
       actionRequired: "action required",
       monitoring: "monitoring",
       armPanicMode: "arm panic mode",
+      lastUpdated: "Last updated",
+      autoRefresh: "Auto-refreshes while the desk is open.",
     },
     watch: {
       kicker: "Watch surface",
@@ -121,6 +125,7 @@ export const COPY = {
       criticalIncidents: "Critical incidents",
       degradedIncidents: "Degraded incidents",
       blockedRoutes: "Blocked routes",
+      heatmapTitle: "Risk heatmap",
       livePoolBoard: "Live pool board",
       noFeed: "No shared safety incidents yet",
       noFeedBody:
@@ -145,12 +150,18 @@ export const COPY = {
       riskThemesBody:
         "Repeated risk themes across live pairs are usually where the market is leaking value fastest.",
       topDrivers: "Why risk is rising",
+      topRiskNow: "Top risk now",
       openPool: "Open pool",
       importBundle: "Import bundle",
       importBody:
         "Load a deterministic incident bundle from another console or operator.",
       selectedIncident: "Feed detail",
       openProtectDesk: "Open in Protect",
+      selectedPoolDetail: "Selected pool detail",
+      riskScore: "Risk score",
+      riskLevel: "Risk level",
+      importance: "Importance",
+      openTrade: "Open in Trade",
     },
     activity: {
       activityLog: "Activity log",
@@ -261,6 +272,8 @@ export const COPY = {
       tokenModalClose: "닫기",
       tokenModalSearch: "검색",
       tokenModalPlaceholder: "심볼, 이름, 민트 주소로 검색",
+      dataSource: "데이터 출처",
+      dataSourceBody: "견적은 Jupiter에서, 풀 유동성과 거래 흐름은 DexScreener에서 가져옵니다.",
     },
     protect: {
       kicker: "패닉 데스크",
@@ -297,6 +310,8 @@ export const COPY = {
       actionRequired: "즉시 대응",
       monitoring: "모니터링 중",
       armPanicMode: "패닉 모드 필요",
+      lastUpdated: "마지막 갱신",
+      autoRefresh: "데스크가 열려 있으면 자동으로 새로고침됩니다.",
     },
     watch: {
       kicker: "감시 표면",
@@ -313,6 +328,7 @@ export const COPY = {
       criticalIncidents: "심각 incident",
       degradedIncidents: "경고 incident",
       blockedRoutes: "차단 경로 수",
+      heatmapTitle: "위험 히트맵",
       livePoolBoard: "실시간 풀 보드",
       noFeed: "공유된 safety incident가 없습니다",
       noFeedBody:
@@ -337,12 +353,18 @@ export const COPY = {
       riskThemesBody:
         "여러 페어에서 반복해서 뜨는 이유가 지금 시장에서 가장 중요한 위험 신호입니다.",
       topDrivers: "왜 위험해지는가",
+      topRiskNow: "지금 가장 위험한 곳",
       openPool: "풀 열기",
       importBundle: "번들 불러오기",
       importBody:
         "다른 운영자가 만든 deterministic incident bundle을 불러옵니다.",
       selectedIncident: "피드 상세",
       openProtectDesk: "Protect에서 열기",
+      selectedPoolDetail: "선택한 풀 상세",
+      riskScore: "위험 점수",
+      riskLevel: "위험 단계",
+      importance: "중요도",
+      openTrade: "Trade에서 열기",
     },
     activity: {
       activityLog: "활동 로그",
