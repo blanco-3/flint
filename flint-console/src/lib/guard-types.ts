@@ -264,10 +264,18 @@ export type MarketRiskItem = {
   pairKey: string;
   inputSymbol: string;
   outputSymbol: string;
+  inputMint: string;
+  outputMint: string;
   venue: string;
   venues: string[];
   status: "safe" | "warn" | "blocked";
   score: number;
+  riskLevel: WatchRiskLevel;
+  badge: WatchRiskBadge;
+  importanceScore: number;
+  importanceBucket: ImportanceBucket;
+  riskSummary: string;
+  factors: MarketRiskFactor[];
   reasonTitles: string[];
   liquidityUsd: number | null;
   priceImpactPct: number | null;
@@ -296,4 +304,44 @@ export type MarketRiskTheme = {
   title: string;
   count: number;
   status: "safe" | "warn" | "blocked";
+};
+
+export type WatchRiskLevel = "clear" | "watch" | "elevated" | "critical";
+export type WatchRiskBadge = "blocked" | "panic-linked" | null;
+export type ImportanceBucket = "large" | "medium" | "small";
+
+export type MarketRiskFactor = {
+  id: string;
+  title: string;
+  score: number;
+  detail: string;
+};
+
+export type DexMarketPair = {
+  pairAddress: string;
+  dexId: string | null;
+  url: string | null;
+  liquidityUsd: number | null;
+  pairCreatedAt: number | null;
+  priceChangeH1: number | null;
+  priceChangeM5: number | null;
+  buysM5: number | null;
+  sellsM5: number | null;
+  baseToken: {
+    address: string;
+    symbol: string;
+    name: string;
+  };
+  quoteToken: {
+    address: string;
+    symbol: string;
+    name: string;
+  };
+};
+
+export type JupiterPriceEntry = {
+  usdPrice: number;
+  blockId: number;
+  decimals: number;
+  priceChange24h?: number;
 };

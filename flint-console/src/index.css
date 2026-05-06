@@ -778,6 +778,71 @@ body {
   margin-top: 14px;
 }
 
+.watch-heatmap {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.heatmap-tile {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 14px;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  cursor: pointer;
+  transition: transform 140ms, border-color 140ms, opacity 140ms;
+}
+
+.heatmap-tile.small { grid-column: span 3; min-height: 110px; }
+.heatmap-tile.medium { grid-column: span 4; min-height: 130px; }
+.heatmap-tile.large { grid-column: span 6; min-height: 150px; }
+
+.heatmap-tile.clear {
+  background: linear-gradient(180deg, rgba(90, 144, 48, 0.10) 0%, rgba(255,255,255,0.02) 100%);
+}
+
+.heatmap-tile.watch {
+  background: linear-gradient(180deg, rgba(192, 136, 32, 0.12) 0%, rgba(255,255,255,0.02) 100%);
+}
+
+.heatmap-tile.elevated,
+.heatmap-tile.warn {
+  background: linear-gradient(180deg, rgba(224, 96, 24, 0.18) 0%, rgba(255,255,255,0.02) 100%);
+}
+
+.heatmap-tile.critical,
+.heatmap-tile.blocked {
+  background: linear-gradient(180deg, rgba(208, 56, 24, 0.24) 0%, rgba(255,255,255,0.02) 100%);
+  border-color: rgba(208, 56, 24, 0.3);
+}
+
+.heatmap-tile.active {
+  transform: translateY(-1px);
+  border-color: var(--accent);
+}
+
+.heatmap-label {
+  font-size: 13px;
+  color: var(--text-1);
+}
+
+.heatmap-tile strong {
+  font-size: 34px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.heatmap-badge {
+  font-size: 11px;
+  color: var(--text-2);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
 .leaderboard-list {
   display: grid;
   gap: 10px;
@@ -1599,9 +1664,29 @@ body {
     justify-items: start;
     text-align: left;
   }
+  .watch-heatmap {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+  .heatmap-tile.large {
+    grid-column: span 6;
+  }
+  .heatmap-tile.medium {
+    grid-column: span 3;
+  }
+  .heatmap-tile.small {
+    grid-column: span 3;
+  }
 }
 
 @media (max-width: 480px) {
   .hero-grid.compact { grid-template-columns: 1fr; }
   .panic-summary { grid-template-columns: 1fr; }
+  .watch-heatmap {
+    grid-template-columns: 1fr 1fr;
+  }
+  .heatmap-tile.large,
+  .heatmap-tile.medium,
+  .heatmap-tile.small {
+    grid-column: span 1;
+  }
 }

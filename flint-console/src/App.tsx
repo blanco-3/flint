@@ -1,8 +1,9 @@
-import { startTransition, useEffect, useEffectEvent, useMemo, useState } from "react";
+import { startTransition, useCallback, useEffect, useEffectEvent, useMemo, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 
 import {
   buildCancelTransactions,
+  fetchPrices,
   buildSwapTransaction,
   fetchQuote,
   fetchTriggerOrders,
@@ -48,8 +49,9 @@ import {
   summarizeRiskVenues,
   summarizeTokenHealth,
 } from "./lib/guard-market-board";
-import { fetchPoolSnapshots } from "./lib/guard-market-data";
+import { fetchLiveMarketPairs, fetchPoolSnapshots } from "./lib/guard-market-data";
 import { buildDecisionReport, buildPanicActionPlan } from "./lib/guard-report";
+import { buildWatchRiskItem } from "./lib/guard-watch-risk";
 import { buildWatchSnapshot } from "./lib/guard-watch";
 import {
   evaluateQuoteRisk,
@@ -79,6 +81,7 @@ import {
   type MarketVenueHealth,
   type OrderAssessment,
   type PanicActionPlan,
+  type PoolSnapshot,
   type QuoteComparison,
   type QuoteFormState,
   type RiskSignalInputs,
@@ -116,23 +119,7 @@ const DEFAULT_FORM: QuoteFormState = {
   slippageBps: 75,
 };
 
-const MARKET_MONITORS: Array<{
-  input: TokenOption;
-  output: TokenOption;
-  amount: string;
-}> = [
-  { input: TOKEN_OPTIONS[0], output: TOKEN_OPTIONS[1], amount: "1" },
-  { input: TOKEN_OPTIONS[0], output: TOKEN_OPTIONS[2], amount: "1" },
-  { input: TOKEN_OPTIONS[0], output: TOKEN_OPTIONS[3], amount: "1" },
-  { input: TOKEN_OPTIONS[2], output: TOKEN_OPTIONS[0], amount: "250" },
-  { input: TOKEN_OPTIONS[3], output: TOKEN_OPTIONS[0], amount: "500000" },
-  { input: TOKEN_OPTIONS[2], output: TOKEN_OPTIONS[1], amount: "250" },
-  { input: TOKEN_OPTIONS[3], output: TOKEN_OPTIONS[1], amount: "500000" },
-  { input: TOKEN_OPTIONS[4], output: TOKEN_OPTIONS[0], amount: "0.5" },
-  { input: TOKEN_OPTIONS[4], output: TOKEN_OPTIONS[1], amount: "0.5" },
-  { input: TOKEN_OPTIONS[5], output: TOKEN_OPTIONS[0], amount: "0.5" },
-  { input: TOKEN_OPTIONS[5], output: TOKEN_OPTIONS[1], amount: "0.5" },
-];
+const AUTO_QUOTE_DEBOUNCE_MS = 450;
 
 export default function App() {
   const [activePanel, setActivePanel] = useState<
@@ -193,6 +180,7 @@ export default function App() {
   const [marketTokens, setMarketTokens] = useState<MarketTokenHealth[]>([]);
   const [marketThemes, setMarketThemes] = useState<MarketRiskTheme[]>([]);
   const [marketVenues, setMarketVenues] = useState<MarketVenueHealth[]>([]);
+  const [selectedMarketItem, setSelectedMarketItem] = useState<MarketRiskItem | null>(null);
   const [marketBoardError, setMarketBoardError] = useState<string | null>(null);
   const [isLoadingMarketBoard, setIsLoadingMarketBoard] = useState(false);
   const [marketRefreshedAt, setMarketRefreshedAt] = useState<string | null>(null);
@@ -444,6 +432,13 @@ export default function App() {
   }, [feedSnapshot, selectedFeedItem]);
 
   useEffect(() => {
+    if (!marketBoard.length) return;
+    if (!selectedMarketItem || !marketBoard.some((item) => item.pairKey === selectedMarketItem.pairKey)) {
+      setSelectedMarketItem(marketBoard[0]);
+    }
+  }, [marketBoard, selectedMarketItem]);
+
+  useEffect(() => {
     if (!quoteExpiresAt && !watchExpiresAt) return;
     const timer = window.setInterval(() => {
       setClockNow(Date.now());
@@ -540,7 +535,7 @@ export default function App() {
     });
   }
 
-  async function evaluateLiveRoutes(options?: { background?: boolean }) {
+  const evaluateLiveRoutes = useCallback(async (options?: { background?: boolean }) => {
     const background = options?.background ?? false;
     const amount = rawAmountFromForm(form.amount, form.inputMint);
     const baseQuote = await fetchQuote({
@@ -639,7 +634,46 @@ export default function App() {
     }
 
     return comparisonState;
-  }
+  }, [form.amount, form.inputMint, form.outputMint, form.slippageBps, policy, safeMode, setActivityLog]);
+
+  useEffect(() => {
+    if (activePanel !== "trade" || dataMode !== "live" || tokenSelectorSide) {
+      return;
+    }
+    if (!form.amount.trim()) {
+      setComparison(null);
+      setQuoteExpiresAt(null);
+      return;
+    }
+    const numericAmount = Number(form.amount);
+    if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setIsEvaluating(true);
+      setComparisonError(null);
+      void evaluateLiveRoutes()
+        .catch((error) => {
+          setComparisonError(describeNetworkError(error, "quote"));
+          setQuoteExpiresAt(null);
+        })
+        .finally(() => {
+          setIsEvaluating(false);
+        });
+    }, AUTO_QUOTE_DEBOUNCE_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    activePanel,
+    dataMode,
+    evaluateLiveRoutes,
+    form.amount,
+    form.inputMint,
+    form.outputMint,
+    form.slippageBps,
+    tokenSelectorSide,
+  ]);
 
   async function handleEvaluateRoutes(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -874,12 +908,38 @@ export default function App() {
       setMarketBoardError(null);
     }
     try {
+      const livePairs = await fetchLiveMarketPairs(
+        TOKEN_OPTIONS.map((token) => token.mint),
+        12
+      );
+      if (!livePairs.length) {
+        throw new Error("market_board_refresh_failed");
+      }
+
+      const prices = await fetchPrices(
+        dedupeStrings(
+          livePairs.flatMap((pair) => [pair.baseToken.address, pair.quoteToken.address])
+        )
+      );
+
       const results = await Promise.allSettled(
-        MARKET_MONITORS.map(async ({ input, output, amount }) => {
+        livePairs.map(async (pair) => {
+          const direction = chooseQuoteDirection(pair);
+          if (!direction) {
+            throw new Error("market_pair_direction_unavailable");
+          }
+          const inputToken =
+            tokenByMint(direction.inputMint) ??
+            syntheticToken(direction.inputMint, direction.inputSymbol);
+          const outputToken =
+            tokenByMint(direction.outputMint) ??
+            syntheticToken(direction.outputMint, direction.outputSymbol);
+          const usdPrice = prices[direction.inputMint]?.usdPrice ?? null;
+          const amount = sampleQuoteAmount(inputToken, usdPrice);
           const quote = await fetchQuote({
-            inputMint: input.mint,
-            outputMint: output.mint,
-            amount: rawAmountFromForm(amount, input.mint),
+            inputMint: direction.inputMint,
+            outputMint: direction.outputMint,
+            amount: rawAmountFromForm(amount, inputToken.mint),
             slippageBps: 75,
           });
           const pools = await fetchPoolSnapshots(quote.routePlan.map((hop) => hop.swapInfo.ammKey));
@@ -892,20 +952,17 @@ export default function App() {
               ? pools[quote.routePlan[0].swapInfo.ammKey]
               : null;
           return {
-            pairKey: `${input.symbol}/${output.symbol}`,
-            inputSymbol: input.symbol,
-            outputSymbol: output.symbol,
-            venue: routeVenues[0] ?? "unknown",
-            venues: routeVenues,
-            status: assessment.status,
-            score: assessment.score,
-            reasonTitles: assessment.reasons.slice(0, 3).map((reason) => reason.title),
-            liquidityUsd: primaryPool?.liquidityUsd ?? null,
-            priceImpactPct: Number.isFinite(Number(quote.priceImpactPct))
-              ? Number(quote.priceImpactPct)
-              : null,
-            updatedAt: new Date().toISOString(),
-            poolUrl: primaryPool?.url ?? null,
+            ...buildWatchRiskItem({
+              inputToken,
+              outputToken,
+              quote,
+              primaryPool: primaryPool ?? pairToPoolSnapshot(pair),
+              assessment,
+              policy,
+              routeVenues,
+              hasSafeFallback: assessment.status !== "blocked",
+            }),
+            poolUrl: primaryPool?.url ?? pair.url ?? null,
           } satisfies MarketRiskItem;
         })
       );
@@ -1714,6 +1771,28 @@ export default function App() {
                 </section>
               ) : null}
 
+              {marketBoard.length ? (
+                <section className="info-card">
+                  <span className="panel-kicker">Risk Heatmap</span>
+                  <div className="watch-heatmap">
+                    {marketBoard.slice(0, 8).map((item) => (
+                      <button
+                        key={`heatmap:${item.pairKey}`}
+                        type="button"
+                        className={`heatmap-tile ${item.riskLevel} ${item.importanceBucket}${
+                          selectedMarketItem?.pairKey === item.pairKey ? " active" : ""
+                        }`}
+                        onClick={() => setSelectedMarketItem(item)}
+                      >
+                        <span className="heatmap-label">{item.pairKey}</span>
+                        <strong>{item.score}</strong>
+                        <span className="heatmap-badge">{item.badge ?? item.riskLevel}</span>
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              ) : null}
+
               {marketVenues.length ? (
                 <section className="proof-strip">
                   {marketVenues.map((entry) => (
@@ -1972,6 +2051,68 @@ export default function App() {
                   <DecisionReportCard report={importedBundle.decisionReport} labels={copy.cards} />
                   <ActionPlanCard plan={importedBundle.panicActionPlan} labels={copy.cards} />
                 </>
+              ) : null}
+
+              {selectedMarketItem ? (
+                <section className="info-card">
+                  <span className="panel-kicker">Selected Pool Detail</span>
+                  <h2>{selectedMarketItem.pairKey}</h2>
+                  <p>{selectedMarketItem.riskSummary}</p>
+                  <div className="report-grid">
+                    <SummaryPill label="Risk score" value={String(selectedMarketItem.score)} />
+                    <SummaryPill label="Risk level" value={selectedMarketItem.riskLevel} />
+                    <SummaryPill label="Importance" value={selectedMarketItem.importanceBucket} />
+                    <SummaryPill
+                      label={copy.watch.marketStatus}
+                      value={selectedMarketItem.badge ?? selectedMarketItem.status}
+                    />
+                  </div>
+                  <div className="reason-list compact">
+                    {selectedMarketItem.factors.slice(0, 4).map((factor) => (
+                      <article className="reason-card warning" key={`${selectedMarketItem.pairKey}:${factor.id}`}>
+                        <div className="reason-head">
+                          <strong>{factor.title}</strong>
+                          <span>{factor.score}</span>
+                        </div>
+                        <p>{factor.detail}</p>
+                      </article>
+                    ))}
+                  </div>
+                  <div className="execution-actions watch-actions">
+                    <button
+                      type="button"
+                      className="ghost-button"
+                      onClick={() => {
+                        setForm((current) => ({
+                          ...current,
+                          inputMint: selectedMarketItem.inputMint,
+                          outputMint: selectedMarketItem.outputMint,
+                        }));
+                        setActivePanel("trade");
+                      }}
+                    >
+                      Open in Trade
+                    </button>
+                    <button
+                      type="button"
+                      className="primary-button"
+                      onClick={() => {
+                        setSignals((current) => ({
+                          ...current,
+                          pairs: dedupeStrings(
+                            current.pairs.concat(
+                              canonicalPairKey(selectedMarketItem.inputMint, selectedMarketItem.outputMint)
+                            )
+                          ),
+                        }));
+                        setPanicMode(true);
+                        setActivePanel("protect");
+                      }}
+                    >
+                      Open in Protect
+                    </button>
+                  </div>
+                </section>
               ) : null}
             </div>
           ) : null}
@@ -3022,6 +3163,78 @@ function formatCountdown(seconds: number) {
   return `${String(Math.floor(safeSeconds / 60)).padStart(2, "0")}:${String(
     safeSeconds % 60
   ).padStart(2, "0")}`;
+}
+
+function chooseQuoteDirection(pair: {
+  baseToken: { address: string; symbol: string };
+  quoteToken: { address: string; symbol: string };
+}) {
+  const baseKnown = tokenByMint(pair.baseToken.address);
+  const quoteKnown = tokenByMint(pair.quoteToken.address);
+  if (baseKnown) {
+    return {
+      inputMint: pair.baseToken.address,
+      inputSymbol: pair.baseToken.symbol,
+      outputMint: pair.quoteToken.address,
+      outputSymbol: pair.quoteToken.symbol,
+    };
+  }
+  if (quoteKnown) {
+    return {
+      inputMint: pair.quoteToken.address,
+      inputSymbol: pair.quoteToken.symbol,
+      outputMint: pair.baseToken.address,
+      outputSymbol: pair.baseToken.symbol,
+    };
+  }
+  return null;
+}
+
+function sampleQuoteAmount(token: TokenOption, usdPrice: number | null) {
+  if (!usdPrice || usdPrice <= 0) {
+    if (token.symbol === "USDC") return "250";
+    if (token.symbol === "SOL" || token.symbol === "mSOL" || token.symbol === "jitoSOL") {
+      return "1";
+    }
+    if (token.symbol === "JUP") return "500";
+    if (token.symbol === "BONK") return "500000";
+    return "100";
+  }
+  const targetUsd = 250;
+  return String(Number((targetUsd / usdPrice).toFixed(token.decimals > 6 ? 4 : 2)));
+}
+
+function syntheticToken(mint: string, symbol: string): TokenOption {
+  return {
+    mint,
+    symbol,
+    name: symbol,
+    decimals: 6,
+  };
+}
+
+function pairToPoolSnapshot(pair: {
+  pairAddress: string;
+  dexId: string | null;
+  liquidityUsd: number | null;
+  pairCreatedAt: number | null;
+  priceChangeH1: number | null;
+  priceChangeM5: number | null;
+  buysM5: number | null;
+  sellsM5: number | null;
+  url: string | null;
+}): PoolSnapshot {
+  return {
+    ammKey: pair.pairAddress,
+    dexId: pair.dexId,
+    liquidityUsd: pair.liquidityUsd,
+    pairCreatedAt: pair.pairCreatedAt,
+    priceChangeH1: pair.priceChangeH1,
+    priceChangeM5: pair.priceChangeM5,
+    buysM5: pair.buysM5,
+    sellsM5: pair.sellsM5,
+    url: pair.url,
+  };
 }
 
 function dedupeStrings(values: string[]) {

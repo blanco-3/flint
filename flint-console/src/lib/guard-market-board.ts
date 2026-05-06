@@ -9,7 +9,9 @@ export function sortMarketRiskItems(items: MarketRiskItem[]) {
   return [...items].sort((a, b) => {
     const statusRankDiff = statusRank(b.status) - statusRank(a.status);
     if (statusRankDiff !== 0) return statusRankDiff;
-    return a.score - b.score;
+    const riskDiff = b.score - a.score;
+    if (riskDiff !== 0) return riskDiff;
+    return b.importanceScore - a.importanceScore;
   });
 }
 
@@ -98,7 +100,7 @@ export function summarizeTokenHealth(items: MarketRiskItem[]) {
     .sort((a, b) => {
       const statusDiff = statusRank(b.status) - statusRank(a.status);
       if (statusDiff !== 0) return statusDiff;
-      return a.averageScore - b.averageScore || a.symbol.localeCompare(b.symbol);
+      return b.averageScore - a.averageScore || a.symbol.localeCompare(b.symbol);
     });
 }
 

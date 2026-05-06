@@ -1,7 +1,8 @@
-import type { JupiterQuote, TriggerOrder } from "./guard-types";
+import type { JupiterPriceEntry, JupiterQuote, TriggerOrder } from "./guard-types";
 
 const SWAP_API_ROOT = "https://lite-api.jup.ag/swap/v1";
 const TRIGGER_API_ROOT = "https://lite-api.jup.ag/trigger/v1";
+const PRICE_API_ROOT = "https://api.jup.ag/price/v3";
 const REQUEST_TIMEOUT_MS = 12000;
 
 export async function fetchQuote(input: {
@@ -124,6 +125,14 @@ export async function buildCancelTransactions(maker: string, orders: string[]) {
     throw new Error("panic_cancel_build_returned_no_transactions");
   }
   return { transactions };
+}
+
+export async function fetchPrices(mints: string[]) {
+  const ids = Array.from(new Set(mints.filter(Boolean))).slice(0, 50);
+  if (!ids.length) return {} as Record<string, JupiterPriceEntry>;
+  const url = new URL(PRICE_API_ROOT);
+  url.searchParams.set("ids", ids.join(","));
+  return requestJson<Record<string, JupiterPriceEntry>>(url.toString());
 }
 
 async function requestJson<T>(url: string, init?: RequestInit) {
