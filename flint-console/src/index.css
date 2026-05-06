@@ -44,8 +44,9 @@ body {
   min-height: 100vh;
   background: var(--bg);
   background-image:
-    radial-gradient(ellipse 140% 50% at 50% 0%, rgba(200, 80, 10, 0.28) 0%, transparent 55%),
-    linear-gradient(180deg, #1e0e05 0%, #160c04 50%, #0e0804 100%);
+    radial-gradient(ellipse 120% 35% at 50% 0%, rgba(200, 80, 10, 0.20) 0%, transparent 50%),
+    radial-gradient(ellipse 120% 45% at 50% 100%, rgba(160, 60, 8, 0.55) 0%, transparent 60%),
+    linear-gradient(180deg, #1a0d05 0%, #130908 55%, #0e0804 100%);
 }
 
 #root { min-height: 100vh; }
@@ -119,6 +120,41 @@ body {
   align-items: center;
   gap: 8px;
   justify-content: flex-end;
+}
+
+/* Language segmented toggle */
+.lang-toggle {
+  display: flex;
+  border-radius: 9px;
+  border: 1px solid var(--border-2);
+  background: rgba(255, 255, 255, 0.04);
+  overflow: hidden;
+}
+
+.lang-opt {
+  padding: 5px 11px;
+  font-size: 12px;
+  font-weight: 600;
+  border: none;
+  background: transparent;
+  color: var(--text-2);
+  cursor: pointer;
+  transition: background 110ms, color 110ms;
+  line-height: 1;
+}
+
+.lang-opt + .lang-opt {
+  border-left: 1px solid var(--border);
+}
+
+.lang-opt.active {
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+
+.lang-opt:hover:not(.active) {
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text-1);
 }
 
 .status-stack { display: flex; gap: 6px; }
@@ -246,6 +282,23 @@ body {
   align-items: center;
   padding: 32px 20px 470px;
   overflow: hidden;
+}
+
+/* Gradient bridge — fades page bg into the canyon top edge */
+.hero-stage::after {
+  content: '';
+  position: absolute;
+  bottom: 440px;
+  left: 0;
+  right: 0;
+  height: 160px;
+  background: linear-gradient(to bottom,
+    var(--bg) 0%,
+    rgba(120, 45, 10, 0.30) 60%,
+    transparent 100%
+  );
+  pointer-events: none;
+  z-index: 0;
 }
 
 /* No hero copy — swap card takes center stage */

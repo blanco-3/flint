@@ -886,16 +886,18 @@ export default function App() {
         </nav>
 
         <div className="nav-actions">
-          {(["en", "kr"] as LocaleCode[]).map((code) => (
-            <button
-              key={code}
-              type="button"
-              className={`chip-button ${locale === code ? "active" : ""}`}
-              onClick={() => setLocale(code)}
-            >
-              {LOCALE_LABELS[code]}
-            </button>
-          ))}
+          <div className="lang-toggle">
+            {(["en", "kr"] as LocaleCode[]).map((code) => (
+              <button
+                key={code}
+                type="button"
+                className={`lang-opt${locale === code ? " active" : ""}`}
+                onClick={() => setLocale(code)}
+              >
+                {LOCALE_LABELS[code]}
+              </button>
+            ))}
+          </div>
           <button type="button" className="ghost-button" onClick={handleResetSession}>
             {copy.nav.reset}
           </button>
