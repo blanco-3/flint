@@ -1,0 +1,45 @@
+# Context Snapshot
+
+- task statement:
+  - Evolve Flint Guard beyond a hackathon MVP into a long-term, defensible execution-safety product.
+  - Keep the current MVP alive while building toward an execution safety layer other Solana apps can subscribe to.
+  - Perform self-critique during the loop and keep scope narrow per iteration.
+- desired outcome:
+  - A concrete long-term product direction grounded in current code.
+  - A small but real implementation step in this iteration that moves Flint Guard from swap safety UI toward incident-native operating layer.
+  - Fresh verification evidence and a candid self-critique.
+- known facts/evidence:
+  - Repo working tree is clean at iteration start.
+  - Current console stack:
+    - React + Vite + TypeScript
+    - `src/App.tsx` for orchestration/UI
+    - `src/lib/` for adapters, policy, risk, demo, wallet, types, market data
+  - Current product capabilities:
+    - seeded demo mode + live API mode
+    - route risk scoring / unsafe rejection / safer route suggestion
+    - panic order candidate detection / one-click panic cancel
+    - activity log / incident log
+    - Flint devnet proof surfaced in the UI
+  - Freshly verified before this iteration:
+    - front-end build/lint pass
+    - guard tests pass
+    - relay/sdk checks pass
+    - legacy Flint build/test pass
+- constraints:
+  - Preserve seeded demo mode and live mode.
+  - Keep `src/lib/` as the center of pure logic.
+  - Avoid broad rewrites and unnecessary dependencies.
+  - Prioritize explainability, fail-closed decisions, deterministic demoability.
+  - User wants both long-term direction and actual code movement.
+- unknowns/open questions:
+  - Which next artifact most increases long-term moat with the least scope: Incident Pack, Decision Report, Panic Action Plan, or shared-feed skeleton?
+  - How much of the long-term direction should be surfaced in the UI now versus encoded as portable logic first?
+- likely codebase touchpoints:
+  - `flint-console/src/App.tsx`
+  - `flint-console/src/lib/guard-types.ts`
+  - `flint-console/src/lib/guard-policies.ts`
+  - `flint-console/src/lib/guard-risk.ts`
+  - new `guard-incident.ts`, `guard-report.ts`, `guard-audit.ts`
+  - tests under `flint-console/src/lib/*.test.ts`
+  - docs/artifacts for roadmap positioning if needed
+

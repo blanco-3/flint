@@ -1,0 +1,24 @@
+{
+  "project": "Flint Guard Long Arc",
+  "scope": "flint-guard-long-arc",
+  "status": "planning-complete",
+  "currentFocus": "Incident Pack + Decision Report + Audit Trail",
+  "tracks": [
+    {
+      "name": "incident-model",
+      "status": "in_progress"
+    },
+    {
+      "name": "decision-report",
+      "status": "pending"
+    },
+    {
+      "name": "audit-trail",
+      "status": "pending"
+    },
+    {
+      "name": "verification",
+      "status": "pending"
+    }
+  ]
+}
