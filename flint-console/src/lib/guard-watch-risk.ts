@@ -123,7 +123,103 @@ export function buildWatchRiskItem(input: {
     importanceScore,
     importanceBucket,
     riskSummary: summarizeRisk(topFactors, assessment, badge),
+    nextAction: buildNextAction(riskScore, badge, hasSafeFallback),
+    dataConfidence: "full-route",
     factors: topFactors,
+  };
+}
+
+export function buildPairOnlyWatchRiskItem(input: {
+  inputToken: TokenOption;
+  outputToken: TokenOption;
+  primaryPool: PoolSnapshot | null;
+  routeVenues: string[];
+  policy: RiskPolicy;
+}): MarketRiskItem {
+  const { inputToken, outputToken, primaryPool, routeVenues, policy } = input;
+
+  const factors = [
+    factor(
+      "liquidity",
+      "Shallow liquidity",
+      liquidityStressScore(primaryPool?.liquidityUsd ?? null),
+      primaryPool?.liquidityUsd
+        ? `$${Math.round(primaryPool.liquidityUsd).toLocaleString()} liquidity on the observed pair.`
+        : "Pair liquidity is unknown."
+    ),
+    factor(
+      "freshness",
+      "Fresh pool",
+      freshnessRiskScore(primaryPool?.pairCreatedAt ?? null),
+      primaryPool?.pairCreatedAt
+        ? `${hoursOld(primaryPool.pairCreatedAt).toFixed(1)}h since creation.`
+        : "Pool age is unknown."
+    ),
+    factor(
+      "price-shock",
+      "Price shock",
+      priceShockRiskScore(primaryPool?.priceChangeM5 ?? null, primaryPool?.priceChangeH1 ?? null),
+      `m5 ${formatPercent(primaryPool?.priceChangeM5 ?? null)} · h1 ${formatPercent(primaryPool?.priceChangeH1 ?? null)}`
+    ),
+    factor(
+      "flow",
+      "Sell pressure",
+      flowImbalanceRiskScore(primaryPool?.sellsM5 ?? null, primaryPool?.buysM5 ?? null),
+      flowDetail(primaryPool?.sellsM5 ?? null, primaryPool?.buysM5 ?? null)
+    ),
+    factor(
+      "venue",
+      "Venue trust",
+      venueTrustRiskScore(routeVenues, policy),
+      routeVenues.join(" / ")
+    ),
+    factor(
+      "token",
+      "Token risk",
+      tokenRiskScore(inputToken.symbol, outputToken.symbol, inputToken.mint, outputToken.mint, policy),
+      `${inputToken.symbol} -> ${outputToken.symbol}`
+    ),
+    factor(
+      "execution",
+      "Execution fragility",
+      18,
+      "Live route quote is unavailable, so execution certainty is degraded."
+    ),
+  ].sort((a, b) => b.score - a.score || a.title.localeCompare(b.title));
+
+  const rawRiskScore = clamp(factors.reduce((sum, item) => sum + item.score, 0), 0, 100);
+  const riskScore = Math.max(rawRiskScore, 55);
+  const importanceScore = buildImportanceScore(
+    inputToken.symbol,
+    outputToken.symbol,
+    primaryPool?.liquidityUsd ?? null
+  );
+  const importanceBucket = importanceBucketFromScore(importanceScore);
+  const riskLevel = riskLevelFromScore(riskScore);
+
+  return {
+    pairKey: `${inputToken.symbol}/${outputToken.symbol}`,
+    inputSymbol: inputToken.symbol,
+    outputSymbol: outputToken.symbol,
+    inputMint: inputToken.mint,
+    outputMint: outputToken.mint,
+    venue: routeVenues[0] ?? "unknown",
+    venues: routeVenues,
+    status: riskScore >= 75 ? "blocked" : "warn",
+    score: riskScore,
+    riskLevel,
+    badge: null,
+    importanceScore,
+    importanceBucket,
+    riskSummary: "Pair-level market signals are elevated and live execution data is currently unavailable.",
+    nextAction: "Review before trading. Wait for a fresh route quote or move to Protect if related exposure is already open.",
+    dataConfidence: "pair-only",
+    factors,
+    reasonTitles: factors.slice(0, 3).map((item) => item.title),
+    liquidityUsd: primaryPool?.liquidityUsd ?? null,
+    priceImpactPct: null,
+    updatedAt: new Date().toISOString(),
+    poolUrl: primaryPool?.url ?? null,
   };
 }
 
@@ -285,6 +381,24 @@ function summarizeRisk(factors: MarketRiskFactor[], assessment: RouteAssessment,
   return top.length
     ? `${top.join(" + ")} are the main reasons this route is climbing the risk board.`
     : "No major market stress factors are active on this route right now.";
+}
+
+function buildNextAction(score: number, badge: WatchRiskBadge, hasSafeFallback: boolean) {
+  if (badge === "blocked") {
+    return hasSafeFallback
+      ? "Use the safer fallback route or move to Protect if you already have open exposure."
+      : "Do not execute now. Move to Protect if you need to unwind related exposure."
+  }
+  if (score >= 75) {
+    return "Treat this as critical. Review the route detail before executing and keep Protect ready."
+  }
+  if (score >= 50) {
+    return "Review the route detail and prefer safer venues or smaller size before trading."
+  }
+  if (score >= 25) {
+    return "Monitor this pair. The market is not broken, but the signal is deteriorating."
+  }
+  return "Route conditions look calm right now. Continue monitoring for changes.";
 }
 
 function flowDetail(sells: number | null, buys: number | null) {

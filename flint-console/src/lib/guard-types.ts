@@ -275,6 +275,8 @@ export type MarketRiskItem = {
   importanceScore: number;
   importanceBucket: ImportanceBucket;
   riskSummary: string;
+  nextAction: string;
+  dataConfidence: "full-route" | "pair-only";
   factors: MarketRiskFactor[];
   reasonTitles: string[];
   liquidityUsd: number | null;

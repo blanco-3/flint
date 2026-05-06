@@ -51,7 +51,7 @@ import {
 } from "./lib/guard-market-board";
 import { fetchLiveMarketPairs, fetchPoolSnapshots } from "./lib/guard-market-data";
 import { buildDecisionReport, buildPanicActionPlan } from "./lib/guard-report";
-import { buildWatchRiskItem } from "./lib/guard-watch-risk";
+import { buildPairOnlyWatchRiskItem, buildWatchRiskItem } from "./lib/guard-watch-risk";
 import { buildWatchSnapshot } from "./lib/guard-watch";
 import {
   evaluateQuoteRisk,
@@ -956,34 +956,44 @@ export default function App() {
             syntheticToken(direction.outputMint, direction.outputSymbol);
           const usdPrice = prices[direction.inputMint]?.usdPrice ?? null;
           const amount = sampleQuoteAmount(inputToken, usdPrice);
-          const quote = await fetchQuote({
-            inputMint: direction.inputMint,
-            outputMint: direction.outputMint,
-            amount: rawAmountFromForm(amount, inputToken.mint),
-            slippageBps: 75,
-          });
-          const pools = await fetchPoolSnapshots(quote.routePlan.map((hop) => hop.swapInfo.ammKey));
-          const assessment = evaluateQuoteRisk(quote, pools, policy);
-          const routeVenues = dedupeStrings(
-            quote.routePlan.map((hop) => hop.swapInfo.label || "unknown")
-          );
-          const primaryPool =
-            quote.routePlan[0]?.swapInfo.ammKey
-              ? pools[quote.routePlan[0].swapInfo.ammKey]
-              : null;
-          return {
-            ...buildWatchRiskItem({
+          try {
+            const quote = await fetchQuote({
+              inputMint: direction.inputMint,
+              outputMint: direction.outputMint,
+              amount: rawAmountFromForm(amount, inputToken.mint),
+              slippageBps: 75,
+            });
+            const pools = await fetchPoolSnapshots(quote.routePlan.map((hop) => hop.swapInfo.ammKey));
+            const assessment = evaluateQuoteRisk(quote, pools, policy);
+            const routeVenues = dedupeStrings(
+              quote.routePlan.map((hop) => hop.swapInfo.label || "unknown")
+            );
+            const primaryPool =
+              quote.routePlan[0]?.swapInfo.ammKey
+                ? pools[quote.routePlan[0].swapInfo.ammKey]
+                : null;
+            return {
+              ...buildWatchRiskItem({
+                inputToken,
+                outputToken,
+                quote,
+                primaryPool: primaryPool ?? pairToPoolSnapshot(pair),
+                assessment,
+                policy,
+                routeVenues,
+                hasSafeFallback: assessment.status !== "blocked",
+              }),
+              poolUrl: primaryPool?.url ?? pair.url ?? null,
+            } satisfies MarketRiskItem;
+          } catch {
+            return buildPairOnlyWatchRiskItem({
               inputToken,
               outputToken,
-              quote,
-              primaryPool: primaryPool ?? pairToPoolSnapshot(pair),
-              assessment,
+              primaryPool: pairToPoolSnapshot(pair),
+              routeVenues: dedupeStrings([pair.dexId ?? "unknown"]),
               policy,
-              routeVenues,
-              hasSafeFallback: assessment.status !== "blocked",
-            }),
-            poolUrl: primaryPool?.url ?? pair.url ?? null,
-          } satisfies MarketRiskItem;
+            });
+          }
         })
       );
 
@@ -1167,8 +1177,20 @@ export default function App() {
     setQuoteExpiresAt(null);
     setOrders([]);
     setOrdersLoaded(false);
+    setOrdersRefreshedAt(null);
     setSelectedOrderKeys([]);
     setOrderError(null);
+    setFeedError(null);
+    setImportedBundle(null);
+    setSelectedFeedItem(null);
+    setSelectedMarketItem(null);
+    setShowLabControls(false);
+    setSignalDrafts({
+      token: "",
+      venue: "",
+    });
+    setTokenSelectorSide(null);
+    setTokenSearch("");
   }
 
   function handleDataModeChange(nextMode: GuardDataMode) {
@@ -1812,9 +1834,7 @@ export default function App() {
               {marketBoard.length ? (
                 <section className="info-card">
                   <span className="panel-kicker">{copy.watch.heatmapTitle}</span>
-                  <p className="heatmap-copy">
-                    Size tracks market importance. Color tracks risk. Start with the biggest red tile.
-                  </p>
+                  <p className="heatmap-copy">{copy.watch.heatmapExplain}</p>
                   <div className="watch-heatmap">
                     {heroMarketItem ? (
                       <button
@@ -1837,6 +1857,9 @@ export default function App() {
                         <span className="heatmap-venue">
                           {heroMarketItem.venues[0] ?? heroMarketItem.venue}
                         </span>
+                        <span className="heatmap-confidence">
+                          {formatConfidence(heroMarketItem.dataConfidence, copy)}
+                        </span>
                       </button>
                     ) : null}
 
@@ -1856,6 +1879,9 @@ export default function App() {
                         <strong>{item.score}</strong>
                         <p>{item.reasonTitles[0] ?? item.riskSummary}</p>
                         <span className="heatmap-venue">{item.venues[0] ?? item.venue}</span>
+                        <span className="heatmap-confidence">
+                          {formatConfidence(item.dataConfidence, copy)}
+                        </span>
                       </button>
                     ))}
                   </div>
@@ -1893,9 +1919,13 @@ export default function App() {
                         detail={
                           typeof item.priceImpactPct === "number" && Number.isFinite(item.priceImpactPct)
                             ? `${copy.trade.priceImpact} ${item.priceImpactPct.toFixed(2)}%`
-                            : copy.common.none
+                            : formatConfidence(item.dataConfidence, copy)
                         }
-                        chips={item.reasonTitles.length ? item.reasonTitles : [copy.watch.clearNow]}
+                        chips={
+                          item.reasonTitles.length
+                            ? [formatConfidence(item.dataConfidence, copy), ...item.reasonTitles]
+                            : [formatConfidence(item.dataConfidence, copy), copy.watch.clearNow]
+                        }
                         linkLabel={item.poolUrl ? copy.watch.openPool : undefined}
                         linkHref={item.poolUrl ?? undefined}
                       />
@@ -1995,9 +2025,19 @@ export default function App() {
                     <SummaryPill label={copy.watch.riskLevel} value={selectedMarketItem.riskLevel} />
                     <SummaryPill label={copy.watch.importance} value={selectedMarketItem.importanceBucket} />
                     <SummaryPill
+                      label={copy.watch.confidence}
+                      value={formatConfidence(selectedMarketItem.dataConfidence, copy)}
+                    />
+                    <SummaryPill
                       label={copy.watch.marketStatus}
                       value={selectedMarketItem.badge ?? selectedMarketItem.status}
                     />
+                  </div>
+                  <div className="report-list">
+                    <strong>{copy.cards.nextActions}</strong>
+                    <ul>
+                      <li>{selectedMarketItem.nextAction}</li>
+                    </ul>
                   </div>
                   <div className="reason-list compact">
                     {selectedMarketItem.factors.slice(0, 4).map((factor) => (
@@ -2788,7 +2828,7 @@ function OrderTable({
           {ordersLoaded
             ? copy.protect.noOrdersFoundBody
             : dataMode === "demo"
-              ? "Load seeded demo orders to show the panic workflow."
+              ? copy.protect.demoHelper
               : hasError
                 ? copy.common.notLoaded
                 : copy.protect.noOrdersLoadedBody}
@@ -2829,13 +2869,13 @@ function OrderTable({
           </div>
           <div className="order-metrics">
             <span>
-              make {formatAtomic(assessment.order.rawMakingAmount, assessment.order.inputMint)}
+              {copy.protect.making} {formatAtomic(assessment.order.rawMakingAmount, assessment.order.inputMint)}
             </span>
             <span>
-              take {formatAtomic(assessment.order.rawTakingAmount, assessment.order.outputMint)}
+              {copy.protect.taking} {formatAtomic(assessment.order.rawTakingAmount, assessment.order.outputMint)}
             </span>
-            <span>slippage {assessment.order.slippageBps ?? "n/a"} bps</span>
-            <span>venue {assessment.order.venue ?? "unknown"}</span>
+            <span>{copy.protect.slippage} {assessment.order.slippageBps ?? "n/a"} bps</span>
+            <span>{copy.protect.venueLabel} {assessment.order.venue ?? "unknown"}</span>
           </div>
           <div className="order-reasons">
             {assessment.reasons.length ? (
@@ -3270,6 +3310,13 @@ function roundCountdownSeconds(remainingMs: number) {
   const seconds = Math.max(0, Math.ceil(remainingMs / 1000));
   if (seconds <= 10) return seconds;
   return Math.ceil(seconds / 5) * 5;
+}
+
+function formatConfidence(
+  confidence: "full-route" | "pair-only",
+  copy: ReturnType<typeof localeCopy>
+) {
+  return confidence === "full-route" ? copy.watch.fullRoute : copy.watch.pairOnly;
 }
 
 function chooseQuoteDirection(pair: {

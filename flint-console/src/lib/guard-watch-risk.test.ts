@@ -1,6 +1,6 @@
 import { strict as assert } from "assert";
 
-import { buildWatchRiskItem } from "./guard-watch-risk";
+import { buildPairOnlyWatchRiskItem, buildWatchRiskItem } from "./guard-watch-risk";
 import type { JupiterQuote, PoolSnapshot, RiskPolicy, RouteAssessment } from "./guard-types";
 import type { TokenOption } from "./token-options";
 
@@ -95,5 +95,19 @@ describe("guard watch risk scoring", () => {
     assert.ok(item.score >= 80);
     assert.equal(item.importanceBucket, "medium");
     assert.ok(item.reasonTitles.length >= 2);
+  });
+
+  it("builds a degraded pair-only item when live route data is unavailable", () => {
+    const item = buildPairOnlyWatchRiskItem({
+      inputToken,
+      outputToken,
+      primaryPool: pool,
+      routeVenues: ["pumpswap"],
+      policy,
+    });
+
+    assert.equal(item.dataConfidence, "pair-only");
+    assert.equal(item.riskLevel, "critical");
+    assert.ok(item.nextAction.length > 0);
   });
 });

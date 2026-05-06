@@ -109,6 +109,10 @@ export const COPY = {
       armPanicMode: "arm panic mode",
       lastUpdated: "Last updated",
       autoRefresh: "Auto-refreshes while the desk is open.",
+      making: "make",
+      taking: "take",
+      slippage: "slippage",
+      venueLabel: "venue",
       noOrdersFound: "No active trigger orders found",
       noOrdersLoaded: "No trigger orders loaded yet",
       noOrdersFoundBody:
@@ -164,6 +168,8 @@ export const COPY = {
         "Repeated risk themes across live pairs are usually where the market is leaking value fastest.",
       topDrivers: "Why risk is rising",
       topRiskNow: "Top risk now",
+      heatmapExplain:
+        "Size tracks market importance. Color tracks risk. Start with the biggest red tile.",
       openPool: "Open pool",
       importBundle: "Import bundle",
       importBody:
@@ -175,6 +181,9 @@ export const COPY = {
       riskLevel: "Risk level",
       importance: "Importance",
       openTrade: "Open in Trade",
+      confidence: "Confidence",
+      fullRoute: "Live route",
+      pairOnly: "Pair-only fallback",
     },
     activity: {
       activityLog: "Activity log",
@@ -350,6 +359,10 @@ export const COPY = {
       armPanicMode: "패닉 모드 필요",
       lastUpdated: "마지막 갱신",
       autoRefresh: "데스크가 열려 있으면 자동으로 새로고침됩니다.",
+      making: "매도",
+      taking: "수취",
+      slippage: "슬리피지",
+      venueLabel: "베뉴",
       noOrdersFound: "활성 트리거 주문이 없습니다",
       noOrdersLoaded: "아직 주문을 불러오지 않았습니다",
       noOrdersFoundBody:
@@ -405,6 +418,8 @@ export const COPY = {
         "여러 페어에서 반복해서 뜨는 이유가 지금 시장에서 가장 중요한 위험 신호입니다.",
       topDrivers: "왜 위험해지는가",
       topRiskNow: "지금 가장 위험한 곳",
+      heatmapExplain:
+        "타일 크기는 중요도를, 색은 위험도를 뜻합니다. 가장 큰 붉은 타일부터 보세요.",
       openPool: "풀 열기",
       importBundle: "번들 불러오기",
       importBody:
@@ -416,6 +431,9 @@ export const COPY = {
       riskLevel: "위험 단계",
       importance: "중요도",
       openTrade: "Trade에서 열기",
+      confidence: "신뢰도",
+      fullRoute: "실시간 경로",
+      pairOnly: "페어 기반 대체값",
     },
     activity: {
       activityLog: "활동 로그",
