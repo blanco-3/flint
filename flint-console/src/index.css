@@ -1,24 +1,25 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
 /* ================================
-   DESIGN TOKENS — FLINT DARK WARM
-   (CoW Swap format, rock theme)
+   DESIGN TOKENS — FLINT WARM ROCK
    ================================ */
 :root {
-  --bg:        #0e0906;
-  --surface:   #160e08;
-  --card:      #1c1208;
-  --card-2:    #241608;
-  --input-bg:  #130d06;
+  --bg:        #160c04;
+  --surface:   #211208;
+  --card:      #2a1709;
+  --card-2:    #361d0b;
+  --input-bg:  #1c0f05;
 
-  --accent:        #e06018;
-  --accent-hover:  #f07828;
-  --accent-dim:    rgba(224, 96, 24, 0.14);
+  --accent:        #f07030;
+  --accent-hover:  #ff8840;
+  --accent-dim:    rgba(240, 112, 48, 0.16);
 
-  --text-0: #f0dcc8;
-  --text-1: rgba(240, 220, 200, 0.58);
-  --text-2: rgba(240, 220, 200, 0.33);
+  --text-0: #fde8cc;
+  --text-1: rgba(253, 232, 204, 0.62);
+  --text-2: rgba(253, 232, 204, 0.36);
 
-  --border:   rgba(200, 100, 40, 0.14);
-  --border-2: rgba(200, 100, 40, 0.26);
+  --border:   rgba(220, 120, 50, 0.16);
+  --border-2: rgba(220, 120, 50, 0.30);
 
   --green:      #5a9030;
   --green-dim:  rgba(90, 144, 48, 0.14);
@@ -27,7 +28,7 @@
   --amber:      #c08820;
   --amber-dim:  rgba(192, 136, 32, 0.14);
 
-  font-family: -apple-system, "Inter", "SF Pro Display", "Segoe UI", sans-serif;
+  font-family: 'Inter', -apple-system, "Segoe UI", sans-serif;
   line-height: 1.5;
   color: var(--text-0);
 }
@@ -43,8 +44,8 @@ body {
   min-height: 100vh;
   background: var(--bg);
   background-image:
-    radial-gradient(ellipse 120% 40% at 50% 0%, rgba(180, 70, 10, 0.22) 0%, transparent 60%),
-    linear-gradient(180deg, #150c06 0%, #0e0906 50%, #080604 100%);
+    radial-gradient(ellipse 140% 50% at 50% 0%, rgba(200, 80, 10, 0.28) 0%, transparent 55%),
+    linear-gradient(180deg, #1e0e05 0%, #160c04 50%, #0e0804 100%);
 }
 
 #root { min-height: 100vh; }
@@ -235,8 +236,7 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  /* Leave room for Rocky scene */
-  padding: 40px 20px 300px;
+  padding: 36px 20px 400px;
   overflow: hidden;
 }
 
@@ -277,13 +277,13 @@ body {
   position: relative;
   z-index: 1;
   width: 100%;
-  max-width: 462px;   /* CoW Swap card width */
-  border-radius: 20px;
+  max-width: 462px;
+  border-radius: 24px;
   background: var(--card);
   border: 1px solid var(--border);
   box-shadow:
-    0 32px 80px rgba(0, 0, 0, 0.65),
-    0 0 0 0.5px rgba(200, 100, 40, 0.06);
+    0 24px 72px rgba(0, 0, 0, 0.60),
+    0 0 0 0.5px rgba(220, 100, 30, 0.08);
   overflow: hidden;
 }
 
@@ -342,13 +342,19 @@ body {
   padding: 8px 8px 10px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 6px;
 }
 
-/* ── Swap box (sell / buy) ── */
+/* ── Swap group: sell + orb + buy connected ── */
+.swap-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* ── Swap box base ── */
 .swap-box {
   padding: 16px;
-  border-radius: 16px;
   background: var(--surface);
   border: 1.5px solid var(--border);
   transition: border-color 150ms;
@@ -357,8 +363,25 @@ body {
   gap: 10px;
 }
 
+/* Sell: top corners rounded, bottom flat */
+.sell-box {
+  border-radius: 16px 16px 0 0;
+  border-bottom-color: transparent;
+  background: var(--input-bg);
+}
+
+/* Buy: bottom corners rounded, top flat */
+.buy-box {
+  border-radius: 0 0 16px 16px;
+  border-top-color: transparent;
+}
+
 .swap-box:focus-within {
-  border-color: rgba(224, 96, 24, 0.45);
+  border-color: rgba(240, 112, 48, 0.50);
+}
+
+.sell-box:focus-within {
+  border-bottom-color: transparent;
 }
 
 /* Top row: label (left) + balance (right) */
@@ -390,8 +413,8 @@ body {
 .swap-amount-input {
   flex: 1;
   min-width: 0;
-  font-size: clamp(28px, 6vw, 40px);
-  font-weight: 400;
+  font-size: clamp(28px, 6vw, 38px);
+  font-weight: 500;
   letter-spacing: -0.03em;
   color: var(--text-0);
   line-height: 1;
@@ -406,8 +429,8 @@ body {
 .swap-readout {
   flex: 1;
   min-width: 0;
-  font-size: clamp(28px, 6vw, 40px);
-  font-weight: 400;
+  font-size: clamp(28px, 6vw, 38px);
+  font-weight: 500;
   letter-spacing: -0.03em;
   color: var(--text-1);
   line-height: 1;
@@ -469,22 +492,22 @@ body {
   white-space: nowrap;
 }
 
-/* ── Switch orb ── */
+/* ── Switch orb — circular, overlaps sell/buy boxes ── */
 .switch-orb {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 38px;
-  height: 38px;
+  width: 40px;
+  height: 40px;
   align-self: center;
-  border-radius: 12px;
-  border: 1.5px solid var(--border);
+  border-radius: 50%;
+  border: 2px solid var(--border-2);
   background: var(--card);
   color: var(--text-1);
   cursor: pointer;
-  transition: background 120ms, border-color 120ms, color 120ms, transform 200ms;
-  margin: -2px auto;
-  z-index: 1;
+  transition: background 120ms, border-color 120ms, color 120ms, transform 250ms ease;
+  margin: -14px auto;
+  z-index: 2;
   position: relative;
 }
 
@@ -1063,7 +1086,7 @@ body {
   bottom: 0;
   left: 0;
   right: 0;
-  height: 280px;
+  height: 380px;
   pointer-events: none;
   z-index: 0;
 }

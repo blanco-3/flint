@@ -968,8 +968,11 @@ export default function App() {
           {activePanel === "trade" ? (
             <form className="trade-panel" onSubmit={handleEvaluateRoutes}>
 
-              {/* ── Sell box ── */}
-              <div className="swap-box">
+              {/* ── Swap group: sell + orb + buy connected ── */}
+              <div className="swap-group">
+
+              {/* Sell box */}
+              <div className="swap-box sell-box">
                 <div className="swap-box-top">
                   <span className="swap-box-label">{copy.trade.sell}</span>
                   <span className="swap-balance">Balance: —</span>
@@ -997,13 +1000,13 @@ export default function App() {
                 </div>
               </div>
 
-              {/* ── Switch orb ── */}
+              {/* Switch orb */}
               <button type="button" className="switch-orb" onClick={flipPair} aria-label="Switch tokens">
                 <SwitchArrows />
               </button>
 
-              {/* ── Buy box ── */}
-              <div className="swap-box">
+              {/* Buy box */}
+              <div className="swap-box buy-box">
                 <div className="swap-box-top">
                   <span className="swap-box-label">{copy.trade.buy}</span>
                   <span className="swap-balance">Balance: —</span>
@@ -1038,6 +1041,7 @@ export default function App() {
                   </div>
                 ) : null}
               </div>
+              </div>{/* end swap-group */}
 
               {/* ── Slippage row ── */}
               <div className="slippage-row">
@@ -1543,15 +1547,17 @@ export default function App() {
 function Rocky() {
   return (
     <svg className="flint-mark" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      {/* Boulder silhouette — flat, clean, like CoW's cow */}
-      <path d="M4 22 Q3 11 9 7 Q13 3 18 3 Q23 3 27 7 Q33 11 32 22 Q31 30 18 31 Q5 30 4 22Z" fill="#e06018"/>
-      {/* Eyes — simple white dots */}
-      <circle cx="13" cy="19" r="2.8" fill="white"/>
-      <circle cx="23" cy="19" r="2.8" fill="white"/>
-      <circle cx="13" cy="19" r="1.4" fill="#1a0804"/>
-      <circle cx="23" cy="19" r="1.4" fill="#1a0804"/>
+      {/* Rounded square base — shield-like, like a platform logo */}
+      <rect x="3" y="3" width="30" height="30" rx="9" fill="#f07030"/>
+      {/* Rocky texture ridge line at top */}
+      <path d="M7 14 Q10 9 14 12 Q17 7 20 11 Q23 7 26 11 Q29 8 33 12" stroke="#ff9050" strokeWidth="1.4" fill="none" strokeLinecap="round"/>
+      {/* Eyes */}
+      <circle cx="13.5" cy="20" r="3" fill="white"/>
+      <circle cx="22.5" cy="20" r="3" fill="white"/>
+      <circle cx="13.5" cy="20.5" r="1.5" fill="#1a0804"/>
+      <circle cx="22.5" cy="20.5" r="1.5" fill="#1a0804"/>
       {/* Smile */}
-      <path d="M13 25 Q18 29 23 25" stroke="white" strokeWidth="1.8" fill="none" strokeLinecap="round"/>
+      <path d="M14 26.5 Q18 30 22 26.5" stroke="white" strokeWidth="1.8" fill="none" strokeLinecap="round"/>
     </svg>
   );
 }
