@@ -19,8 +19,8 @@ const BONK = TOKEN_OPTIONS[3].mint;
 export const DEMO_SCENARIOS: DemoScenario[] = [
   {
     id: "fresh-pool-rug",
-    label: "Fresh pool rug",
-    summary: "New pool, thin liquidity, and heavy sell pressure force Flint to reject the best-price route.",
+    label: "Liquidity drain replay",
+    summary: "A fresh pool loses depth, sell pressure spikes, and Flint blocks the best-price route before execution.",
     form: {
       inputMint: SOL,
       outputMint: BONK,
@@ -35,8 +35,8 @@ export const DEMO_SCENARIOS: DemoScenario[] = [
   },
   {
     id: "venue-panic",
-    label: "Venue panic",
-    summary: "A venue is manually flagged during an ecosystem incident and Flint reroutes away from it.",
+    label: "Venue compromise replay",
+    summary: "A venue is flagged during an ecosystem incident and Flint reroutes away while Protect prepares exposure cleanup.",
     form: {
       inputMint: JUP,
       outputMint: SOL,
@@ -51,8 +51,8 @@ export const DEMO_SCENARIOS: DemoScenario[] = [
   },
   {
     id: "unknown-metadata",
-    label: "Unknown venue metadata",
-    summary: "Treasury mode fails closed when the best route lacks enough pool metadata to trust.",
+    label: "Blind route replay",
+    summary: "Treasury mode fails closed when the observed route lacks enough metadata to trust during abnormal conditions.",
     form: {
       inputMint: SOL,
       outputMint: USDC,

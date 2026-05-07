@@ -70,6 +70,7 @@ import {
   type ActivityLogEntry,
   type ActionProfileId,
   type DecisionReport,
+  type DemoScenario,
   type DemoScenarioId,
   type GuardDataMode,
   type GuardPolicyPreset,
@@ -1527,10 +1528,6 @@ export default function App() {
                         </section>
                       )}
                     </div>
-                    <section className="info-card trade-hint-card">
-                      <span className="panel-kicker">{copy.trade.dataSource}</span>
-                      <p>{copy.trade.dataSourceBody}</p>
-                    </section>
                   </>
                 ) : (
                   <section className="info-card trade-hint-card">
@@ -1725,23 +1722,11 @@ export default function App() {
               <IncidentPackCard incidentPack={incidentPack} labels={copy.cards} />
               <DecisionReportCard report={decisionReport} labels={copy.cards} />
 
-              <section className="proof-strip">
+              <section className="proof-strip compact-proof-strip">
                 <ProofCard
                   title={copy.activity.kernelProof}
                   detail={`${copy.activity.kernelProofBody} Program ${shortenAddress(devnetDeploy.programId)}.`}
                   href={devnetDeploy.programExplorer}
-                  cta={copy.common.open}
-                />
-                <ProofCard
-                  title={copy.activity.happyPathProof}
-                  detail={`submit_intent -> submit_bid -> settle_auction completed on devnet: ${shortenAddress(devnetHappy.terminalSignature)}`}
-                  href={devnetHappy.terminalExplorer}
-                  cta={copy.common.open}
-                />
-                <ProofCard
-                  title={copy.activity.timeoutProof}
-                  detail={`refund_after_timeout completed on devnet: ${shortenAddress(devnetTimeout.terminalSignature)}`}
-                  href={devnetTimeout.terminalExplorer}
                   cta={copy.common.open}
                 />
                 <ProofCard
@@ -1755,6 +1740,12 @@ export default function App() {
                 <ProofCard
                   title={copy.activity.safetyFeedPreview}
                   detail={`${safetyFeedPreview.itemCount} item · ${safetyFeedPreview.criticalCount} critical · profile ${actionProfileId}`}
+                />
+                <ProofCard
+                  title={copy.activity.timeoutProof}
+                  detail={`happy ${shortenAddress(devnetHappy.terminalSignature)} · refund ${shortenAddress(devnetTimeout.terminalSignature)}`}
+                  href={devnetTimeout.terminalExplorer}
+                  cta={copy.common.open}
                 />
               </section>
 
@@ -1838,147 +1829,66 @@ export default function App() {
                 </section>
               ) : null}
 
-              {marketBoard.length ? (
-                <section className="info-card">
-                  <span className="panel-kicker">{copy.watch.heatmapTitle}</span>
-                  <p className="heatmap-copy">{copy.watch.heatmapExplain}</p>
-                  <div className="watch-heatmap">
-                    {heroMarketItem ? (
-                      <button
-                        key={`heatmap:hero:${heroMarketItem.pairKey}`}
-                        type="button"
-                        className={`heatmap-tile hero ${heroMarketItem.riskLevel} ${
-                          selectedMarketItem?.pairKey === heroMarketItem.pairKey ? " active" : ""
-                        }`}
-                        onClick={() => setSelectedMarketItem(heroMarketItem)}
-                      >
-                        <span className="heatmap-eyebrow">{copy.watch.topRiskNow}</span>
-                        <div className="heatmap-head">
-                          <span className="heatmap-label">{heroMarketItem.pairKey}</span>
-                          <span className="heatmap-badge">
-                            {heroMarketItem.badge ?? heroMarketItem.riskLevel}
-                          </span>
-                        </div>
-                        <strong>{heroMarketItem.score}</strong>
-                        <p>{heroMarketItem.reasonTitles[0] ?? heroMarketItem.riskSummary}</p>
-                        <span className="heatmap-venue">
-                          {heroMarketItem.venues[0] ?? heroMarketItem.venue}
-                        </span>
-                        <span className="heatmap-confidence">
-                          {formatConfidence(heroMarketItem.dataConfidence, copy)}
-                        </span>
-                      </button>
-                    ) : null}
-
-                    {secondaryHeatmapItems.map((item) => (
-                      <button
-                        key={`heatmap:${item.pairKey}`}
-                        type="button"
-                        className={`heatmap-tile ${item.riskLevel} ${item.importanceBucket}${
-                          selectedMarketItem?.pairKey === item.pairKey ? " active" : ""
-                        }`}
-                        onClick={() => setSelectedMarketItem(item)}
-                      >
-                        <div className="heatmap-head">
-                          <span className="heatmap-label">{item.pairKey}</span>
-                          <span className="heatmap-badge">{item.badge ?? item.riskLevel}</span>
-                        </div>
-                        <strong>{item.score}</strong>
-                        <p>{item.reasonTitles[0] ?? item.riskSummary}</p>
-                        <span className="heatmap-venue">{item.venues[0] ?? item.venue}</span>
-                        <span className="heatmap-confidence">
-                          {formatConfidence(item.dataConfidence, copy)}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </section>
-              ) : null}
-
               <section className="info-card">
-                <span className="panel-kicker">{copy.watch.livePoolBoard}</span>
-                <p>
-                  {marketRefreshedAt
-                    ? `${copy.watch.lastUpdated}: ${new Date(marketRefreshedAt).toLocaleTimeString()}`
-                    : copy.common.notLoaded}
-                </p>
+                <span className="panel-kicker">{copy.watch.heatmapTitle}</span>
                 {marketBoard.length ? (
-                  <div className="leaderboard-list">
-                    {marketBoard.map((item, index) => (
-                      <LeaderboardRow
-                        key={item.pairKey}
-                        rank={index + 1}
-                        title={item.pairKey}
-                        subtitle={`${item.venues.join(" · ")} · ${copy.trade.routeScore} ${item.score}`}
-                        status={item.status}
-                        detail={
-                          typeof item.priceImpactPct === "number" && Number.isFinite(item.priceImpactPct)
-                            ? `${copy.trade.priceImpact} ${item.priceImpactPct.toFixed(2)}%`
-                            : formatConfidence(item.dataConfidence, copy)
-                        }
-                        chips={
-                          item.reasonTitles.length
-                            ? [formatConfidence(item.dataConfidence, copy), ...item.reasonTitles]
-                            : [formatConfidence(item.dataConfidence, copy), copy.watch.clearNow]
-                        }
-                        linkLabel={item.poolUrl ? copy.watch.openPool : undefined}
-                        linkHref={item.poolUrl ?? undefined}
-                      />
-                    ))}
-                  </div>
+                  <>
+                    <p className="heatmap-copy">{copy.watch.heatmapExplain}</p>
+                    <div className="watch-heatmap">
+                      {heroMarketItem ? (
+                        <button
+                          key={`heatmap:hero:${heroMarketItem.pairKey}`}
+                          type="button"
+                          className={`heatmap-tile hero ${heroMarketItem.riskLevel} ${
+                            selectedMarketItem?.pairKey === heroMarketItem.pairKey ? " active" : ""
+                          }`}
+                          onClick={() => setSelectedMarketItem(heroMarketItem)}
+                        >
+                          <span className="heatmap-eyebrow">{copy.watch.topRiskNow}</span>
+                          <div className="heatmap-head">
+                            <span className="heatmap-label">{heroMarketItem.pairKey}</span>
+                            <span className="heatmap-badge">
+                              {heroMarketItem.badge ?? heroMarketItem.riskLevel}
+                            </span>
+                          </div>
+                          <strong>{heroMarketItem.score}</strong>
+                          <p>{heroMarketItem.reasonTitles[0] ?? heroMarketItem.riskSummary}</p>
+                          <span className="heatmap-venue">
+                            {heroMarketItem.venues[0] ?? heroMarketItem.venue}
+                          </span>
+                          <span className="heatmap-confidence">
+                            {formatConfidence(heroMarketItem.dataConfidence, copy)}
+                          </span>
+                        </button>
+                      ) : null}
+
+                      {secondaryHeatmapItems.map((item) => (
+                        <button
+                          key={`heatmap:${item.pairKey}`}
+                          type="button"
+                          className={`heatmap-tile ${item.riskLevel} ${item.importanceBucket}${
+                            selectedMarketItem?.pairKey === item.pairKey ? " active" : ""
+                          }`}
+                          onClick={() => setSelectedMarketItem(item)}
+                        >
+                          <div className="heatmap-head">
+                            <span className="heatmap-label">{item.pairKey}</span>
+                            <span className="heatmap-badge">{item.badge ?? item.riskLevel}</span>
+                          </div>
+                          <strong>{item.score}</strong>
+                          <p>{item.reasonTitles[0] ?? item.riskSummary}</p>
+                          <span className="heatmap-venue">{item.venues[0] ?? item.venue}</span>
+                          <span className="heatmap-confidence">
+                            {formatConfidence(item.dataConfidence, copy)}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </>
                 ) : (
                   <div className="empty-state">
                     <strong>{copy.watch.noFeed}</strong>
                     <p>{marketBoardError ?? copy.watch.noFeedBody}</p>
-                  </div>
-                )}
-              </section>
-
-              <section className="info-card">
-                <span className="panel-kicker">{copy.watch.assetHealth}</span>
-                <p>{copy.watch.assetHealthBody}</p>
-                {marketTokens.length ? (
-                  <div className="leaderboard-list compact">
-                    {marketTokens.map((asset, index) => (
-                      <LeaderboardRow
-                        key={asset.symbol}
-                        rank={index + 1}
-                        title={asset.symbol}
-                        subtitle={`${asset.pairCount} ${copy.watch.monitoredPairs} · ${asset.venueCount} ${copy.watch.monitoredVenues}`}
-                        status={asset.status}
-                        detail={`${copy.watch.assetScore} ${asset.averageScore}`}
-                        chips={asset.topReasons.length ? asset.topReasons : [copy.watch.clearNow]}
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="empty-state">
-                    <strong>{copy.watch.noFeed}</strong>
-                    <p>{copy.watch.noFeedBody}</p>
-                  </div>
-                )}
-              </section>
-
-              <section className="info-card">
-                <span className="panel-kicker">{copy.watch.venuePressure}</span>
-                <p>{copy.watch.riskThemesBody}</p>
-                {marketVenues.length ? (
-                  <div className="leaderboard-list compact">
-                    {marketVenues.map((venue, index) => (
-                      <LeaderboardRow
-                        key={venue.venue}
-                        rank={index + 1}
-                        title={venue.venue}
-                        subtitle={`${venue.count} ${copy.watch.venueRoutes}`}
-                        status={venue.status}
-                        detail={`${venue.blockedCount} ${copy.watch.blockedNow}`}
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="empty-state">
-                    <strong>{copy.watch.venuePressure}</strong>
-                    <p>{copy.common.notLoaded}</p>
                   </div>
                 )}
               </section>
@@ -2054,6 +1964,55 @@ export default function App() {
                   </div>
                 </section>
               ) : null}
+
+              <section className="info-card">
+                <span className="panel-kicker">{copy.watch.assetHealth}</span>
+                <p>{copy.watch.assetHealthBody}</p>
+                {marketTokens.length ? (
+                  <div className="leaderboard-list compact">
+                    {marketTokens.map((asset, index) => (
+                      <LeaderboardRow
+                        key={asset.symbol}
+                        rank={index + 1}
+                        title={asset.symbol}
+                        subtitle={`${asset.pairCount} ${copy.watch.monitoredPairs} · ${asset.venueCount} ${copy.watch.monitoredVenues}`}
+                        status={asset.status}
+                        detail={`${copy.watch.assetScore} ${asset.averageScore}`}
+                        chips={asset.topReasons.length ? asset.topReasons : [copy.watch.clearNow]}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="empty-state">
+                    <strong>{copy.watch.noFeed}</strong>
+                    <p>{copy.watch.noFeedBody}</p>
+                  </div>
+                )}
+              </section>
+
+              <section className="info-card">
+                <span className="panel-kicker">{copy.watch.venuePressure}</span>
+                <p>{copy.watch.riskThemesBody}</p>
+                {marketVenues.length ? (
+                  <div className="leaderboard-list compact">
+                    {marketVenues.map((venue, index) => (
+                      <LeaderboardRow
+                        key={venue.venue}
+                        rank={index + 1}
+                        title={venue.venue}
+                        subtitle={`${venue.count} ${copy.watch.venueRoutes}`}
+                        status={venue.status}
+                        detail={`${venue.blockedCount} ${copy.watch.blockedNow}`}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="empty-state">
+                    <strong>{copy.watch.venuePressure}</strong>
+                    <p>{copy.common.notLoaded}</p>
+                  </div>
+                )}
+              </section>
 
               <section className="hero-grid compact watch-status-rail">
                 <MetricCard
@@ -2153,7 +2112,7 @@ export default function App() {
           {activePanel === "settings" ? (
             <div className="settings-panel">
               <div className="hero-grid compact">
-                <MetricCard label={copy.common.dataMode} value={dataMode === "demo" ? copy.common.labMode : copy.common.liveApis} />
+                <MetricCard label={copy.common.dataMode} value={dataMode === "demo" ? copy.common.seededDemo : copy.common.liveApis} />
                 <MetricCard
                   label={copy.settings.kernelLabel}
                   value={copy.settings.verifiedValue}
@@ -2211,6 +2170,11 @@ export default function App() {
                 </div>
                 {showLabControls ? (
                   <>
+                    <section className="info-card">
+                      <span className="panel-kicker">{copy.settings.simulationScenarios}</span>
+                      <p>{copy.settings.simulationScenariosBody}</p>
+                      <SimulationScenarioPanel scenario={activeScenario} />
+                    </section>
                     <ModeToggle
                       dataMode={dataMode}
                       onChange={handleDataModeChange}
@@ -2504,6 +2468,28 @@ function TokenSelectorModal({
   );
 }
 
+function SimulationScenarioPanel({ scenario }: { scenario: DemoScenario }) {
+  const steps = simulationTimeline(scenario.id);
+  return (
+    <div className="simulation-panel">
+      <div className="compact-route-head">
+        <strong>{scenario.label}</strong>
+      </div>
+      <p>{scenario.summary}</p>
+      <div className="reason-list compact">
+        {steps.map((step, index) => (
+          <article className="reason-card warning" key={`${scenario.id}:${step}`}>
+            <div className="reason-head">
+              <strong>Step {index + 1}</strong>
+            </div>
+            <p>{step}</p>
+          </article>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function LeaderboardRow({
   rank,
   title,
@@ -2774,7 +2760,7 @@ function RouteAssessmentCard({
       <h2>{describeAssessment(assessment, copy)}</h2>
       <div className="report-grid">
         <SummaryPill label={copy.trade.routeScore} value={String(assessment.score)} />
-        <SummaryPill label={copy.trade.priceImpact} value={`${Number(quote.priceImpactPct).toFixed(2)}%`} />
+        <SummaryPill label={copy.trade.priceImpact} value={formatImpact(Number(quote.priceImpactPct))} />
         <SummaryPill label={copy.trade.hops} value={String(quote.routePlan.length)} />
         <SummaryPill label={copy.trade.receive} value={formatAtomic(quote.outAmount, outputMint)} />
       </div>
@@ -3319,11 +3305,42 @@ function roundCountdownSeconds(remainingMs: number) {
   return Math.ceil(seconds / 5) * 5;
 }
 
+function formatImpact(value: number) {
+  if (!Number.isFinite(value)) return "n/a";
+  const absolute = Math.abs(value);
+  if (absolute === 0 || absolute < 0.01) return "<0.01%";
+  if (absolute < 0.1) return `${absolute.toFixed(3)}%`;
+  return `${absolute.toFixed(2)}%`;
+}
+
 function formatConfidence(
   confidence: "full-route" | "pair-only",
   copy: ReturnType<typeof localeCopy>
 ) {
   return confidence === "full-route" ? copy.watch.fullRoute : copy.watch.pairOnly;
+}
+
+function simulationTimeline(id: DemoScenarioId) {
+  switch (id) {
+    case "fresh-pool-rug":
+      return [
+        "A fresh pool loses liquidity while sell pressure accelerates.",
+        "The best-price route starts looking attractive but becomes structurally unsafe.",
+        "Flint blocks the route and highlights a safer fallback before execution.",
+      ];
+    case "venue-panic":
+      return [
+        "A venue is flagged during an ecosystem incident.",
+        "Trade reroutes away from the venue while Watch marks the venue as critical.",
+        "Protect turns matching exposure into cancel candidates for cleanup.",
+      ];
+    case "unknown-metadata":
+      return [
+        "Observed market conditions degrade while pool metadata disappears.",
+        "Treasury posture fails closed because execution certainty collapses.",
+        "Flint keeps the pair visible as a degraded simulation until better data returns.",
+      ];
+  }
 }
 
 function chooseQuoteDirection(pair: {
