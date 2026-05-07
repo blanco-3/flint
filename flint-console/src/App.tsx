@@ -1539,6 +1539,13 @@ export default function App() {
                     <p>{copy.trade.tradeHintBody}</p>
                   </section>
                 )}
+                <section className="execution-bar trade-source-bar">
+                  <div>
+                    <strong>{copy.trade.dataSource}</strong>
+                    <p>{copy.trade.dataSourceBody}</p>
+                  </div>
+                  <span className="status-tag safe">{copy.trade.quoteIdle}</span>
+                </section>
               </div>
             </div>
           ) : null}
@@ -1888,18 +1895,6 @@ export default function App() {
                 </section>
               ) : null}
 
-              {marketVenues.length ? (
-                <section className="proof-strip">
-                  {marketVenues.map((entry) => (
-                    <ProofCard
-                      key={entry.venue}
-                      title={entry.venue}
-                      detail={`${entry.count} route(s) currently overlap this venue in the live board.`}
-                    />
-                  ))}
-                </section>
-              ) : null}
-
               <section className="info-card">
                 <span className="panel-kicker">{copy.watch.livePoolBoard}</span>
                 <p>
@@ -1938,33 +1933,6 @@ export default function App() {
                   </div>
                 )}
               </section>
-
-              <div className="proof-strip">
-                <ProofCard
-                  title={copy.watch.currentIncident}
-                  detail={`${incidentPack.name} · ${incidentPack.severity} · ${incidentPack.mode}`}
-                />
-                <ProofCard
-                  title={copy.watch.feedSnapshot}
-                  detail={
-                    feedSnapshot
-                      ? `${feedSnapshot.itemCount} items · ${feedSnapshot.criticalCount} critical`
-                      : copy.common.notLoaded
-                  }
-                />
-                <ProofCard
-                  title={copy.watch.currentProfile}
-                  detail={ACTION_PROFILES[actionProfileId].description}
-                />
-                <ProofCard
-                  title={copy.watch.marketStatus}
-                  detail={
-                    marketRefreshedAt
-                      ? `${copy.watch.lastUpdated}: ${new Date(marketRefreshedAt).toLocaleTimeString()}`
-                      : copy.common.notLoaded
-                  }
-                />
-              </div>
 
               <section className="info-card">
                 <span className="panel-kicker">{copy.watch.assetHealth}</span>
@@ -2086,6 +2054,37 @@ export default function App() {
                   </div>
                 </section>
               ) : null}
+
+              <section className="hero-grid compact watch-status-rail">
+                <MetricCard
+                  label={copy.watch.currentIncident}
+                  value={incidentPack.severity}
+                  detail={incidentPack.name}
+                />
+                <MetricCard
+                  label={copy.watch.feedSnapshot}
+                  value={feedSnapshot ? String(feedSnapshot.itemCount) : copy.common.none}
+                  detail={
+                    feedSnapshot
+                      ? `${feedSnapshot.criticalCount} critical`
+                      : copy.common.notLoaded
+                  }
+                />
+                <MetricCard
+                  label={copy.watch.currentProfile}
+                  value={copy.profiles[actionProfileId]}
+                  detail={ACTION_PROFILES[actionProfileId].description}
+                />
+                <MetricCard
+                  label={copy.watch.marketStatus}
+                  value={marketRefreshedAt ? copy.watch.refreshReady : copy.common.none}
+                  detail={
+                    marketRefreshedAt
+                      ? `${copy.watch.lastUpdated}: ${new Date(marketRefreshedAt).toLocaleTimeString()}`
+                      : copy.common.notLoaded
+                  }
+                />
+              </section>
 
               <section className="feed-list">
                 {(feedSnapshot?.items ?? []).length ? (
@@ -2823,9 +2822,17 @@ function OrderTable({
   if (!assessments.length) {
     return (
       <div className="empty-state">
-        <strong>{ordersLoaded ? copy.protect.noOrdersFound : copy.protect.noOrdersLoaded}</strong>
+        <strong>
+          {hasError
+            ? copy.protect.degradedTitle
+            : ordersLoaded
+              ? copy.protect.noOrdersFound
+              : copy.protect.noOrdersLoaded}
+        </strong>
         <p>
-          {ordersLoaded
+          {hasError
+            ? copy.protect.degradedBody
+            : ordersLoaded
             ? copy.protect.noOrdersFoundBody
             : dataMode === "demo"
               ? copy.protect.demoHelper

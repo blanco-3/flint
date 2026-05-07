@@ -119,6 +119,9 @@ export const COPY = {
         "The fetch completed, but there are no orders matching the current wallet or current incident state.",
       noOrdersLoadedBody:
         "Connect a wallet and refresh. Flint will collect cancel candidates automatically when risk signals match.",
+      degradedTitle: "Order desk is degraded",
+      degradedBody:
+        "Live order data is unavailable right now. Keep Protect open and retry once the upstream path recovers.",
       noPanicReason: "No active panic reason",
       cancelCandidate: "cancel candidate",
       monitorOnly: "monitor",
@@ -388,6 +391,9 @@ export const COPY = {
         "조회는 끝났지만 현재 지갑이나 incident 조건에 맞는 주문이 없습니다.",
       noOrdersLoadedBody:
         "지갑을 연결하고 새로고침하면, Flint가 위험 신호에 맞는 취소 후보를 자동으로 모읍니다.",
+      degradedTitle: "주문 데스크가 제한 상태입니다",
+      degradedBody:
+        "지금은 라이브 주문 데이터를 가져오지 못했습니다. Protect를 열어둔 채 복구 후 다시 시도하세요.",
       noPanicReason: "현재 패닉 사유 없음",
       cancelCandidate: "취소 후보",
       monitorOnly: "모니터링",
