@@ -83,6 +83,20 @@ class FileRelayStore {
     return item ? structuredClone(item) : null;
   }
 
+  async updateSafetyIncident(incidentId, updater) {
+    if (!this.state.safetyFeed) {
+      this.state.safetyFeed = {};
+    }
+    const existing = this.state.safetyFeed[incidentId];
+    if (!existing) {
+      return null;
+    }
+    const next = updater(structuredClone(existing));
+    this.state.safetyFeed[incidentId] = next;
+    await this.persist();
+    return structuredClone(next);
+  }
+
   async listSafetyFeed() {
     if (!this.state.safetyFeed) {
       this.state.safetyFeed = {};

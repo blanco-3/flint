@@ -34,6 +34,13 @@ function createMemoryStore() {
     async getSafetyIncident(incidentId) {
       return safetyFeed.has(incidentId) ? structuredClone(safetyFeed.get(incidentId)) : null;
     },
+    async updateSafetyIncident(incidentId, updater) {
+      const current = safetyFeed.get(incidentId);
+      if (!current) return null;
+      const next = updater(structuredClone(current));
+      safetyFeed.set(incidentId, structuredClone(next));
+      return structuredClone(next);
+    },
     async listSafetyFeed() {
       return [...safetyFeed.values()].map((item) => structuredClone(item));
     },
@@ -204,6 +211,8 @@ test("relay lifecycle creates, quotes, selects, and reports status", async () =>
       incidentId: "incident-1",
       bundleId: "bundle-1",
       profile: "retail-user",
+      state: "open",
+      source: "live-session",
       severity: "critical",
       posture: "degraded",
       executionRecommendation: "prefer-safe-route",
@@ -215,6 +224,8 @@ test("relay lifecycle creates, quotes, selects, and reports status", async () =>
       affectedPairs: ["pair-a"],
       affectedVenues: ["venue-a"],
       nextActions: ["Use safer route"],
+      publishedAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
     }),
   });
   assert.equal(publishFeedResponse.status, 201);
@@ -252,6 +263,8 @@ test("relay safety feed rejects invalid enum values", async () => {
       incidentId: "incident-x",
       bundleId: "bundle-x",
       profile: "invalid-profile",
+      state: "open",
+      source: "live-session",
       severity: "critical",
       posture: "degraded",
       executionRecommendation: "prefer-safe-route",
@@ -263,6 +276,8 @@ test("relay safety feed rejects invalid enum values", async () => {
       affectedPairs: [],
       affectedVenues: [],
       nextActions: [],
+      publishedAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
     }),
   });
 
@@ -289,6 +304,8 @@ test("relay safety feed upserts by incident id", async () => {
     incidentId: "incident-upsert",
     bundleId: "bundle-1",
     profile: "retail-user",
+    state: "open",
+    source: "live-session",
     severity: "watch",
     posture: "clear",
     executionRecommendation: "allow-best-route",
@@ -300,6 +317,8 @@ test("relay safety feed upserts by incident id", async () => {
     affectedPairs: [],
     affectedVenues: [],
     nextActions: [],
+    publishedAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
   };
 
   await fetch(`${base}/safety-feed`, {
@@ -331,6 +350,65 @@ test("relay safety feed upserts by incident id", async () => {
   server.close();
 });
 
+test("relay incident state transitions are shared", async () => {
+  const store = createMemoryStore();
+  const server = createRelayServer({
+    store,
+    notifier: async () => {},
+    now: (() => {
+      let time = Date.parse("2026-01-01T00:00:00.000Z");
+      return () => {
+        const current = new Date(time);
+        time += 1000;
+        return current;
+      };
+    })(),
+  });
+
+  server.listen(0);
+  await once(server, "listening");
+  const { port } = server.address();
+  const base = `http://127.0.0.1:${port}`;
+
+  await fetch(`${base}/safety-feed`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      incidentId: "incident-stateful",
+      bundleId: "bundle-stateful",
+      profile: "treasury-operator",
+      state: "open",
+      source: "live-session",
+      severity: "critical",
+      posture: "blocked",
+      executionRecommendation: "block-execution",
+      headline: "Blocked route",
+      summary: "Stateful feed item",
+      candidateOrderCount: 2,
+      blockedRoute: true,
+      affectedTokens: ["SOL"],
+      affectedPairs: ["SOL/USDC"],
+      affectedVenues: ["Jupiter"],
+      nextActions: ["Escalate"],
+    }),
+  });
+
+  const updateResponse = await fetch(`${base}/safety-feed/incident-stateful/state`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ state: "acknowledged" }),
+  });
+  assert.equal(updateResponse.status, 200);
+  const updated = await updateResponse.json();
+  assert.equal(updated.state, "acknowledged");
+
+  const incidentResponse = await fetch(`${base}/safety-feed/incident-stateful`);
+  const incident = await incidentResponse.json();
+  assert.equal(incident.state, "acknowledged");
+
+  server.close();
+});
+
 test("relay exposes canonical watch snapshot and history", async () => {
   const store = createMemoryStore();
   const server = createRelayServer({
@@ -356,6 +434,10 @@ test("relay exposes canonical watch snapshot and history", async () => {
   const history = await historyResponse.json();
   assert.equal(history.snapshots.length, 1);
   assert.equal(history.snapshots[0].snapshotVersion, "2026-05-07T12:00:00.000Z");
+
+  const streamResponse = await fetch(`${base}/watch/stream`);
+  assert.equal(streamResponse.status, 200);
+  assert.match(streamResponse.headers.get("content-type") ?? "", /text\/event-stream/);
 
   server.close();
 });

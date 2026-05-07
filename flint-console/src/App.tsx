@@ -34,8 +34,10 @@ import {
 import { buildDeterministicAuditBundle } from "./lib/guard-audit";
 import {
   fetchSafetyFeed,
+  subscribeWatchStream,
   fetchWatchSnapshot,
   publishSafetyFeedItem,
+  updateSafetyIncidentState,
 } from "./lib/guard-feed-client";
 import {
   isSafetyFeedSnapshot,
@@ -169,6 +171,7 @@ export default function App() {
   const [feedError, setFeedError] = useState<string | null>(null);
   const [isLoadingFeed, setIsLoadingFeed] = useState(false);
   const [isPublishingFeed, setIsPublishingFeed] = useState(false);
+  const [updatingIncidentId, setUpdatingIncidentId] = useState<string | null>(null);
   const [importedBundle, setImportedBundle] = useState<DeterministicAuditBundle | null>(null);
   const [selectedFeedItem, setSelectedFeedItem] = useState<SafetyFeedItem | null>(null);
   const [signalDrafts, setSignalDrafts] = useState({
@@ -400,6 +403,45 @@ export default function App() {
     });
   });
 
+  const applyWatchSnapshot = useCallback(
+    (snapshot: WatchServerSnapshot, background = false) => {
+      const nextMotion = snapshot.marketBoard.reduce<Record<string, "rising" | "cooling">>((acc, item) => {
+        const previous = marketBoard.find((current) => current.pairKey === item.pairKey);
+        if (!previous) return acc;
+        if (item.score > previous.score || severityWeight(item.riskLevel) > severityWeight(previous.riskLevel)) {
+          acc[item.pairKey] = "rising";
+        } else if (
+          item.score < previous.score ||
+          severityWeight(item.riskLevel) < severityWeight(previous.riskLevel)
+        ) {
+          acc[item.pairKey] = "cooling";
+        }
+        return acc;
+      }, {});
+
+      startTransition(() => {
+        setMarketBoardError(null);
+        setWatchServerSnapshot(snapshot);
+        setMarketBoard(snapshot.marketBoard);
+        setMarketTokens(snapshot.marketTokens);
+        setMarketThemes(snapshot.marketThemes);
+        setMarketVenues(snapshot.marketVenues);
+        setMarketRefreshedAt(snapshot.updatedAt);
+        setMarketMotionByPair(nextMotion);
+      });
+
+      if (!background) {
+        appendLog(setActivityLog, {
+          title: copy.activity.marketBoardRefreshed,
+          detail: `${snapshot.itemCount} canonical market route(s) synced from relay.`,
+          severity: "info",
+          kind: "activity",
+        });
+      }
+    },
+    [copy.activity.marketBoardRefreshed, marketBoard, setActivityLog]
+  );
+
   const refreshProtectSurface = useEffectEvent(() => {
     void handleLoadOrders();
   });
@@ -428,6 +470,25 @@ export default function App() {
 
     return () => window.clearInterval(timer);
   }, [activePanel, dataMode, watchServerSnapshot, feedSnapshot]);
+
+  useEffect(() => {
+    if (activePanel !== "watch" || dataMode !== "live") return;
+    if (typeof window === "undefined" || typeof EventSource === "undefined") return;
+
+    setIsWatchSyncing(true);
+    const unsubscribe = subscribeWatchStream(
+      (snapshot) => {
+        applyWatchSnapshot(snapshot, true);
+        setIsWatchSyncing(false);
+      },
+      (error) => {
+        setMarketBoardError((current) => current ?? error);
+        setIsWatchSyncing(false);
+      }
+    );
+
+    return unsubscribe;
+  }, [activePanel, dataMode, applyWatchSnapshot]);
 
   useEffect(() => {
     if (!feedSnapshot?.items.length) return;
@@ -935,37 +996,7 @@ export default function App() {
     }
     try {
       const snapshot = await fetchWatchSnapshot(undefined, !background);
-      const nextMotion = snapshot.marketBoard.reduce<Record<string, "rising" | "cooling">>((acc, item) => {
-        const previous = marketBoard.find((current) => current.pairKey === item.pairKey);
-        if (!previous) return acc;
-        if (item.score > previous.score || severityWeight(item.riskLevel) > severityWeight(previous.riskLevel)) {
-          acc[item.pairKey] = "rising";
-        } else if (
-          item.score < previous.score ||
-          severityWeight(item.riskLevel) < severityWeight(previous.riskLevel)
-        ) {
-          acc[item.pairKey] = "cooling";
-        }
-        return acc;
-      }, {});
-      startTransition(() => {
-        setMarketBoardError(null);
-        setWatchServerSnapshot(snapshot);
-        setMarketBoard(snapshot.marketBoard);
-        setMarketTokens(snapshot.marketTokens);
-        setMarketThemes(snapshot.marketThemes);
-        setMarketVenues(snapshot.marketVenues);
-        setMarketRefreshedAt(snapshot.updatedAt);
-        setMarketMotionByPair(nextMotion);
-      });
-      if (!background) {
-        appendLog(setActivityLog, {
-          title: copy.activity.marketBoardRefreshed,
-          detail: `${snapshot.itemCount} canonical market route(s) synced from relay.`,
-          severity: "info",
-          kind: "activity",
-        });
-      }
+      applyWatchSnapshot(snapshot, background);
     } catch (error) {
       if (!background && !marketBoard.length) {
         setMarketBoardError(describeNetworkError(error, "market"));
@@ -1014,6 +1045,41 @@ export default function App() {
       });
     } finally {
       setIsPublishingFeed(false);
+    }
+  }
+
+  async function handleUpdateIncidentState(
+    item: SafetyFeedItem,
+    state: SafetyFeedItem["state"]
+  ) {
+    setUpdatingIncidentId(item.incidentId);
+    setFeedError(null);
+    try {
+      const updated = await updateSafetyIncidentState(item.incidentId, state);
+      startTransition(() => {
+        const nextItems = (feedSnapshot?.items ?? []).map((current) =>
+          current.incidentId === updated.incidentId ? updated : current
+        );
+        setFeedSnapshot(buildSafetyFeedSnapshot(nextItems));
+        setSelectedFeedItem(updated);
+      });
+      appendLog(setActivityLog, {
+        title: "Incident state updated",
+        detail: `${updated.incidentId} -> ${updated.state}`,
+        severity: "info",
+        kind: "activity",
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "incident_state_update_failed";
+      setFeedError(message);
+      appendLog(setActivityLog, {
+        title: "Incident state update failed",
+        detail: message,
+        severity: "warning",
+        kind: "incident",
+      });
+    } finally {
+      setUpdatingIncidentId(null);
     }
   }
 
@@ -2048,6 +2114,7 @@ export default function App() {
                       <p>{item.summary}</p>
                       <div className="report-grid">
                         <SummaryPill label={copy.cards.profile} value={copy.profiles[item.profile]} />
+                        <SummaryPill label={copy.watch.incidentState} value={item.state} />
                         <SummaryPill label={copy.cards.execution} value={item.executionRecommendation} />
                         <SummaryPill label={copy.cards.blockedRoute} value={item.blockedRoute ? copy.common.yes : copy.common.no} />
                       </div>
@@ -2068,9 +2135,27 @@ export default function App() {
                   <p>{selectedFeedItem.summary}</p>
                   <div className="report-grid">
                     <SummaryPill label={copy.cards.profile} value={copy.profiles[selectedFeedItem.profile]} />
+                    <SummaryPill label={copy.watch.incidentState} value={selectedFeedItem.state} />
                     <SummaryPill label={copy.cards.severity} value={selectedFeedItem.severity} />
                     <SummaryPill label={copy.cards.posture} value={selectedFeedItem.posture} />
                     <SummaryPill label={copy.cards.blockedRoute} value={selectedFeedItem.blockedRoute ? copy.common.yes : copy.common.no} />
+                  </div>
+                  <div className="chip-wrap">
+                    {(["acknowledged", "escalated", "resolved"] as SafetyFeedItem["state"][]).map((state) => (
+                      <button
+                        key={state}
+                        type="button"
+                        className={`chip-button ${selectedFeedItem.state === state ? "active" : ""}`}
+                        disabled={selectedFeedItem.state === state || updatingIncidentId === selectedFeedItem.incidentId}
+                        onClick={() => void handleUpdateIncidentState(selectedFeedItem, state)}
+                      >
+                        {state === "acknowledged"
+                          ? copy.watch.acknowledge
+                          : state === "escalated"
+                            ? copy.watch.escalate
+                            : copy.watch.resolve}
+                      </button>
+                    ))}
                   </div>
                   <div className="report-list">
                     <strong>{copy.cards.nextActions}</strong>

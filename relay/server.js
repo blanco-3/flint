@@ -55,6 +55,13 @@ function createRelayServer({
         });
       }
 
+      if (req.method === "GET" && url.pathname === "/watch/stream") {
+        if (!watchService) {
+          return sendJson(res, 503, { error: "watch_stream_unavailable" });
+        }
+        return streamWatchSnapshots(req, res, watchService);
+      }
+
       if (req.method === "GET" && url.pathname === "/safety-feed") {
         const items = await store.listSafetyFeed();
         return sendJson(res, 200, buildSafetyFeedSnapshot(items));
@@ -224,8 +231,31 @@ function createRelayServer({
       if (req.method === "POST" && url.pathname === "/safety-feed") {
         const body = await readJson(req);
         const item = validateSafetyFeedItem(body);
-        const stored = await store.upsertSafetyIncident(item);
+        const existing = await store.getSafetyIncident(item.incidentId);
+        const timestamp = now().toISOString();
+        const stored = await store.upsertSafetyIncident({
+          ...item,
+          state: item.state ?? existing?.state ?? "open",
+          source: item.source ?? existing?.source ?? "live-session",
+          publishedAt: existing?.publishedAt ?? timestamp,
+          updatedAt: timestamp,
+        });
         return sendJson(res, 201, stored);
+      }
+
+      if (req.method === "POST" && url.pathname.startsWith("/safety-feed/") && url.pathname.endsWith("/state")) {
+        const incidentId = decodeURIComponent(url.pathname.split("/")[2]);
+        const body = await readJson(req);
+        const state = validateSafetyIncidentState(body.state);
+        const stored = await store.updateSafetyIncident(incidentId, (existing) => ({
+          ...existing,
+          state,
+          updatedAt: now().toISOString(),
+        }));
+        if (!stored) {
+          return sendJson(res, 404, { error: "incident_not_found" });
+        }
+        return sendJson(res, 200, stored);
       }
 
       return sendJson(res, 404, { error: "not_found" });
@@ -371,7 +401,7 @@ function buildSafetyFeedSnapshot(items) {
     criticalCount: items.filter((item) => item.severity === "critical").length,
     degradedCount: items.filter((item) => item.posture === "degraded").length,
     blockedCount: items.filter((item) => item.blockedRoute).length,
-    items,
+    items: [...items].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || a.incidentId.localeCompare(b.incidentId)),
   };
 }
 
@@ -405,6 +435,8 @@ function validateSafetyFeedItem(body) {
     "prefer-safe-route",
     "block-execution",
   ]);
+  const allowedStates = new Set(["open", "acknowledged", "escalated", "resolved"]);
+  const allowedSources = new Set(["manual", "demo", "live-session"]);
 
   for (const field of [
     "incidentId",
@@ -445,6 +477,14 @@ function validateSafetyFeedItem(body) {
     throw new HttpError(400, "invalid_executionRecommendation");
   }
 
+  if (body.state != null && !allowedStates.has(body.state)) {
+    throw new HttpError(400, "invalid_state");
+  }
+
+  if (body.source != null && !allowedSources.has(body.source)) {
+    throw new HttpError(400, "invalid_source");
+  }
+
   for (const field of ["affectedTokens", "affectedPairs", "affectedVenues", "nextActions"]) {
     if (!Array.isArray(body[field]) || !body[field].every((item) => typeof item === "string")) {
       throw new HttpError(400, `invalid_${field}`);
@@ -455,6 +495,8 @@ function validateSafetyFeedItem(body) {
     incidentId: String(body.incidentId),
     bundleId: String(body.bundleId),
     profile: body.profile,
+    state: body.state ?? "open",
+    source: body.source ?? "live-session",
     severity: body.severity,
     posture: body.posture,
     executionRecommendation: body.executionRecommendation,
@@ -467,6 +509,14 @@ function validateSafetyFeedItem(body) {
     affectedVenues: [...body.affectedVenues],
     nextActions: [...body.nextActions],
   };
+}
+
+function validateSafetyIncidentState(state) {
+  const allowedStates = new Set(["open", "acknowledged", "escalated", "resolved"]);
+  if (!allowedStates.has(state)) {
+    throw new HttpError(400, "invalid_state");
+  }
+  return state;
 }
 
 async function readJson(req) {
@@ -504,6 +554,48 @@ class HttpError extends Error {
   }
 }
 
+async function streamWatchSnapshots(req, res, watchService) {
+  res.writeHead(200, {
+    "content-type": "text/event-stream",
+    "cache-control": "no-cache, no-transform",
+    connection: "keep-alive",
+  });
+
+  let closed = false;
+  let lastVersion = "";
+
+  async function emitSnapshot() {
+    if (closed) return;
+    try {
+      const snapshot = await watchService.getSnapshot();
+      if (snapshot.snapshotVersion !== lastVersion) {
+        lastVersion = snapshot.snapshotVersion;
+        res.write(`event: snapshot\n`);
+        res.write(`data: ${JSON.stringify(snapshot)}\n\n`);
+      }
+    } catch (error) {
+      res.write(`event: degraded\n`);
+      res.write(`data: ${JSON.stringify({ error: error instanceof Error ? error.message : "watch_stream_failed" })}\n\n`);
+    }
+  }
+
+  const tick = setInterval(() => {
+    void emitSnapshot();
+  }, 5000);
+  const heartbeat = setInterval(() => {
+    res.write(`: keep-alive\n\n`);
+  }, 15000);
+
+  req.on("close", () => {
+    closed = true;
+    clearInterval(tick);
+    clearInterval(heartbeat);
+    res.end();
+  });
+
+  await emitSnapshot();
+}
+
 module.exports = {
   createRelayServer,
   buildExecutionPlan,
@@ -512,4 +604,5 @@ module.exports = {
   deriveAnalyticsSummary,
   buildSafetyFeedSnapshot,
   HttpError,
+  streamWatchSnapshots,
 };

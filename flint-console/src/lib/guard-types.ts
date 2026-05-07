@@ -224,6 +224,8 @@ export type SafetyFeedItem = {
   incidentId: string;
   bundleId: string;
   profile: ActionProfileId;
+  state: "open" | "acknowledged" | "escalated" | "resolved";
+  source: IncidentSource;
   severity: IncidentSeverity;
   posture: DecisionPosture;
   executionRecommendation: DecisionReport["executionRecommendation"];
@@ -235,6 +237,8 @@ export type SafetyFeedItem = {
   affectedPairs: string[];
   affectedVenues: string[];
   nextActions: string[];
+  publishedAt: string;
+  updatedAt: string;
 };
 
 export type SafetyFeedSnapshot = {

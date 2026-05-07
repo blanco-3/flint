@@ -19,6 +19,8 @@ export function buildSafetyFeedItem(input: {
     incidentId: incidentPack.id,
     bundleId: bundle.bundleId,
     profile,
+    state: "open",
+    source: incidentPack.source,
     severity: incidentPack.severity,
     posture: decisionReport.posture,
     executionRecommendation: decisionReport.executionRecommendation,
@@ -30,6 +32,8 @@ export function buildSafetyFeedItem(input: {
     affectedPairs: [...incidentPack.affectedPairs],
     affectedVenues: [...incidentPack.affectedVenues],
     nextActions: [...decisionReport.nextActions],
+    publishedAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   };
 }
 
@@ -39,6 +43,6 @@ export function buildSafetyFeedSnapshot(items: SafetyFeedItem[]) {
     criticalCount: items.filter((item) => item.severity === "critical").length,
     degradedCount: items.filter((item) => item.posture === "degraded").length,
     blockedCount: items.filter((item) => item.blockedRoute).length,
-    items: [...items].sort((a, b) => a.incidentId.localeCompare(b.incidentId)),
+    items: [...items].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || a.incidentId.localeCompare(b.incidentId)),
   };
 }
