@@ -7,17 +7,28 @@ pub fn handler(ctx: Context<SubmitBid>, output_amount: u64) -> Result<()> {
     let current_slot = clock.slot;
     let previous_winning_bid_key = ctx.accounts.intent.winning_bid;
 
+    require_keys_neq!(
+        ctx.accounts.solver.key(),
+        ctx.accounts.intent.user,
+        FlintError::SelfBidNotAllowed
+    );
+
     match previous_winning_bid_key {
         Some(previous_bid_key) => {
             let previous_winning_bid = ctx
                 .accounts
                 .previous_winning_bid
-                .as_ref()
+                .as_mut()
                 .ok_or(FlintError::PreviousWinningBidRequired)?;
             let previous_solver_registry = ctx
                 .accounts
                 .previous_solver_registry
                 .as_mut()
+                .ok_or(FlintError::PreviousWinningBidRequired)?;
+            let previous_solver = ctx
+                .accounts
+                .previous_solver
+                .as_ref()
                 .ok_or(FlintError::PreviousWinningBidRequired)?;
 
             require_keys_eq!(
@@ -37,6 +48,11 @@ pub fn handler(ctx: Context<SubmitBid>, output_amount: u64) -> Result<()> {
                 previous_solver_registry.solver == previous_winning_bid.solver,
                 FlintError::PreviousWinningBidMismatch
             );
+            require_keys_eq!(
+                previous_solver.key(),
+                previous_winning_bid.solver,
+                FlintError::PreviousWinningBidMismatch
+            );
 
             let expected_registry_key = Pubkey::find_program_address(
                 &[b"solver", previous_winning_bid.solver.as_ref()],
@@ -52,11 +68,14 @@ pub fn handler(ctx: Context<SubmitBid>, output_amount: u64) -> Result<()> {
             previous_solver_registry.active_winning_bids = previous_solver_registry
                 .active_winning_bids
                 .saturating_sub(1);
+
+            previous_winning_bid.close(previous_solver.to_account_info())?;
         }
         None => {
             require!(
                 ctx.accounts.previous_winning_bid.is_none()
-                    && ctx.accounts.previous_solver_registry.is_none(),
+                    && ctx.accounts.previous_solver_registry.is_none()
+                    && ctx.accounts.previous_solver.is_none(),
                 FlintError::PreviousWinningBidMismatch
             );
         }
@@ -156,6 +175,9 @@ pub struct SubmitBid<'info> {
 
     #[account(mut)]
     pub previous_solver_registry: Option<Account<'info, SolverRegistryAccount>>,
+
+    #[account(mut)]
+    pub previous_solver: Option<SystemAccount<'info>>,
 
     pub system_program: Program<'info, System>,
 }

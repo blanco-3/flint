@@ -177,6 +177,11 @@
           "optional": true
         },
         {
+          "name": "previous_solver",
+          "writable": true,
+          "optional": true
+        },
+        {
           "name": "system_program",
           "address": "11111111111111111111111111111111"
         }
@@ -487,7 +492,8 @@
           }
         },
         {
-          "name": "solver"
+          "name": "solver",
+          "writable": true
         },
         {
           "name": "solver_registry",
@@ -513,10 +519,12 @@
           }
         },
         {
-          "name": "intent"
+          "name": "intent",
+          "writable": true
         },
         {
-          "name": "winning_bid"
+          "name": "winning_bid",
+          "writable": true
         },
         {
           "name": "system_program",
@@ -947,6 +955,16 @@
       "code": 6022,
       "name": "PreviousWinningBidMismatch",
       "msg": "이전 winning bid 정보가 현재 인텐트 상태와 일치하지 않습니다"
+    },
+    {
+      "code": 6023,
+      "name": "IntentAlreadyFinalised",
+      "msg": "이미 종료된 인텐트입니다"
+    },
+    {
+      "code": 6024,
+      "name": "SelfBidNotAllowed",
+      "msg": "인텐트 제출자는 자기 인텐트에 입찰할 수 없습니다"
     }
   ],
   "types": [

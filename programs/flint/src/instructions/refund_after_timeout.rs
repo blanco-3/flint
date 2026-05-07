@@ -17,7 +17,7 @@ pub fn handler(ctx: Context<RefundAfterTimeout>) -> Result<()> {
 
         require!(
             intent.status == IntentStatus::Open,
-            FlintError::IntentNotOpen
+            FlintError::IntentAlreadyFinalised
         );
         require!(
             current_slot > intent.close_at_slot + REFUND_GRACE_SLOTS,

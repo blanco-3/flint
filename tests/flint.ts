@@ -172,6 +172,7 @@ describe("flint", () => {
     outputAmount: BN;
     previousWinningBid?: PublicKey | null;
     previousSolverRegistry?: PublicKey | null;
+    previousSolver?: PublicKey | null;
   }) {
     const bidPda = deriveBidPda(params.intentPda, params.signer.publicKey);
 
@@ -184,6 +185,7 @@ describe("flint", () => {
         bid: bidPda,
         previousWinningBid: params.previousWinningBid ?? null,
         previousSolverRegistry: params.previousSolverRegistry ?? null,
+        previousSolver: params.previousSolver ?? null,
         systemProgram: SystemProgram.programId,
       })
       .signers([params.signer])
@@ -362,6 +364,31 @@ describe("flint", () => {
     }
   });
 
+  it("인텐트 제출자는 자기 인텐트에 bid를 넣을 수 없다", async () => {
+    const userRegistryPda = deriveSolverRegistryPda(user.publicKey);
+    await registerSolverAccount(user);
+
+    const nonce = nextNonce();
+    const { intentPda } = await submitIntentAccount(
+      nonce,
+      new BN(40_000_000),
+      new BN(35_000_000)
+    );
+
+    try {
+      await submitBidFor({
+        signer: user,
+        solverRegistry: userRegistryPda,
+        intentPda,
+        outputAmount: new BN(36_000_000),
+      });
+
+      assert.fail("expected SelfBidNotAllowed");
+    } catch (error) {
+      assert.include(String(error), "SelfBidNotAllowed");
+    }
+  });
+
   it("정상 경매는 settle_auction 후 계정들을 닫고 체결 카운터를 올린다", async () => {
     const nonce = nextNonce();
     const { intentPda, escrowAta } = await submitIntentAccount(nonce);
@@ -486,6 +513,7 @@ describe("flint", () => {
       outputAmount: new BN(59_000_000),
       previousWinningBid: timeoutMainBidPda,
       previousSolverRegistry: solverRegistryPda,
+      previousSolver: solver.publicKey,
     });
 
     const timeoutIntent = await program.account.intentAccount.fetch(timeoutIntentPda);
@@ -512,6 +540,7 @@ describe("flint", () => {
         BigInt(challengerRegistryBefore.totalBids.toString()),
       BigInt(1)
     );
+    await assertAccountClosed(timeoutMainBidPda);
   });
 
   it("잘못된 이전 winner 계정을 넘기면 실패한다", async () => {
@@ -535,8 +564,9 @@ describe("flint", () => {
         solverRegistry: challengerRegistryPda,
         intentPda,
         outputAmount: new BN(48_000_000),
-        previousWinningBid: timeoutMainBidPda,
-        previousSolverRegistry: solverRegistryPda,
+        previousWinningBid: timeoutChallengerBidPda,
+        previousSolverRegistry: challengerRegistryPda,
+        previousSolver: challenger.publicKey,
       });
 
       assert.fail("expected PreviousWinningBidMismatch");
@@ -807,10 +837,73 @@ describe("flint", () => {
     const registryAfter = await program.account.solverRegistryAccount.fetch(
       solverRegistryPda
     );
+    const intentAfter = await program.account.intentAccount.fetch(intentPda);
     assert.equal(
       BigInt(registryAfter.stakeAmount.toString()),
       stakeBefore - safeSlash
     );
+    assert.equal(
+      BigInt(registryAfter.activeWinningBids.toString()),
+      BigInt(registryBefore.activeWinningBids.toString()) - BigInt(1)
+    );
+    assert.deepEqual(intentAfter.status, { expired: {} });
+    assert.isNull(intentAfter.winningBid);
+    await assertAccountClosed(bidPda);
+  });
+
+  it("slash_solver 이후 refund_after_timeout은 재실행되지 않는다", async () => {
+    const nonce = nextNonce();
+    const { intentPda, escrowAta } = await submitIntentAccount(
+      nonce,
+      new BN(34_000_000),
+      new BN(31_000_000)
+    );
+    const bidPda = await submitBidFor({
+      signer: freshSolver,
+      solverRegistry: freshSolverRegistryPda,
+      intentPda,
+      outputAmount: new BN(32_000_000),
+    });
+    const intent = await program.account.intentAccount.fetch(intentPda);
+    await waitUntilSlotPassed(intent.closeAtSlot.toNumber());
+
+    await program.methods
+      .slashSolver()
+      .accounts({
+        authority: provider.wallet.publicKey,
+        config: configPda,
+        solver: freshSolver.publicKey,
+        solverRegistry: freshSolverRegistryPda,
+        intent: intentPda,
+        winningBid: bidPda,
+        systemProgram: SystemProgram.programId,
+      })
+      .rpc();
+
+    await assertAccountClosed(bidPda);
+
+    try {
+      await program.methods
+        .refundAfterTimeout()
+        .accounts({
+          caller: provider.wallet.publicKey,
+          solver: freshSolver.publicKey,
+          solverRegistry: freshSolverRegistryPda,
+          intent: intentPda,
+          winningBid: bidPda,
+          escrowTokenAccount: escrowAta,
+          userTokenAccount: userInputAta,
+          user: user.publicKey,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+
+      assert.fail("expected refund_after_timeout replay to fail");
+    } catch (error) {
+      assert.notEqual(String(error).length, 0);
+    }
   });
 
   it("active exposure가 정리되면 withdraw_stake가 성공한다", async () => {

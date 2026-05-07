@@ -14,7 +14,7 @@ pub fn handler(ctx: Context<SlashSolver>) -> Result<()> {
 
     require!(
         intent.status == IntentStatus::Open,
-        FlintError::SlashConditionNotMet
+        FlintError::IntentAlreadyFinalised
     );
     require!(
         current_slot > intent.close_at_slot,
@@ -57,6 +57,11 @@ pub fn handler(ctx: Context<SlashSolver>) -> Result<()> {
     let remaining_stake = registry.stake_amount.saturating_sub(safe_slash);
     registry.stake_amount = remaining_stake;
     registry.reputation_score = registry.reputation_score.saturating_sub(100);
+    registry.active_winning_bids = registry.active_winning_bids.saturating_sub(1);
+
+    let intent = &mut ctx.accounts.intent;
+    intent.status = IntentStatus::Expired;
+    intent.winning_bid = None;
 
     emit!(SolverSlashed {
         solver: registry.solver,
@@ -85,6 +90,7 @@ pub struct SlashSolver<'info> {
     )]
     pub config: Account<'info, ConfigAccount>,
 
+    #[account(mut)]
     pub solver: SystemAccount<'info>,
 
     #[account(
@@ -94,9 +100,12 @@ pub struct SlashSolver<'info> {
     )]
     pub solver_registry: Account<'info, SolverRegistryAccount>,
 
+    #[account(mut)]
     pub intent: Account<'info, IntentAccount>,
 
     #[account(
+        mut,
+        close = solver,
         constraint = winning_bid.intent == intent.key() @ FlintError::NotWinningBid,
         constraint = winning_bid.solver == solver.key() @ FlintError::NotWinningBid,
     )]

@@ -70,4 +70,10 @@ pub enum FlintError {
 
     #[msg("이전 winning bid 정보가 현재 인텐트 상태와 일치하지 않습니다")]
     PreviousWinningBidMismatch,
+
+    #[msg("이미 종료된 인텐트입니다")]
+    IntentAlreadyFinalised,
+
+    #[msg("인텐트 제출자는 자기 인텐트에 입찰할 수 없습니다")]
+    SelfBidNotAllowed,
 }
