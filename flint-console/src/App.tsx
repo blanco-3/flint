@@ -195,6 +195,9 @@ export default function App() {
   const [tokenSelectorSide, setTokenSelectorSide] = useState<"input" | "output" | null>(null);
   const [tokenSearch, setTokenSearch] = useState("");
   const [showLabControls, setShowLabControls] = useState(false);
+  const [showActivityEvidence, setShowActivityEvidence] = useState(false);
+  const [showWatchSecondary, setShowWatchSecondary] = useState(false);
+  const [showSettingsDetails, setShowSettingsDetails] = useState(false);
   const copy = useMemo(() => localeCopy(locale), [locale]);
 
   const basePolicy = useMemo(() => policyCopy(POLICY_PRESETS[policyPreset]), [policyPreset]);
