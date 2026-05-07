@@ -89,14 +89,20 @@ export async function searchDexTokenOptions(query: string) {
   if (!response.ok) {
     return [];
   }
-
-  const payload = (await response.json()) as {
+  const raw = await response.text();
+  if (/^rate limit/i.test(raw.trim())) {
+    return [];
+  }
+  const payload = safeParseJson<{
     pairs?: Array<{
       chainId?: string;
       baseToken?: { address?: string; symbol?: string; name?: string };
       quoteToken?: { address?: string; symbol?: string; name?: string };
     }>;
-  };
+  }>(raw);
+  if (!payload) {
+    return [];
+  }
 
   const discovered = dedupeByMint(
     (payload.pairs ?? [])
@@ -143,7 +149,8 @@ async function fetchMintMetadata(mint: string) {
     }),
   });
   if (!response.ok) return null;
-  const payload = (await response.json()) as {
+  const raw = await response.text();
+  const payload = safeParseJson<{
     result?: {
       value?: {
         data?: {
@@ -157,7 +164,8 @@ async function fetchMintMetadata(mint: string) {
         };
       };
     };
-  };
+  }>(raw);
+  if (!payload) return null;
   const info = payload.result?.value?.data?.parsed?.info;
   if (!info || typeof info.decimals !== "number") {
     return null;
@@ -220,4 +228,12 @@ function hasMeaningfulTokenDiff(left: TokenOption, right: TokenOption) {
     left.name !== right.name ||
     left.decimals !== right.decimals
   );
+}
+
+function safeParseJson<T>(raw: string) {
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
 }

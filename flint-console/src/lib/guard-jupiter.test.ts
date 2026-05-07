@@ -46,4 +46,11 @@ describe("guard Jupiter adapters", () => {
       /panic_cancel_build_returned_no_transactions/
     );
   });
+
+  it("turns non-json rate-limit responses into a stable error", async () => {
+    globalThis.fetch = (async () =>
+      new Response("Rate limit exceeded", { status: 429 })) as typeof fetch;
+
+    await assert.rejects(async () => fetchTriggerOrders("wallet"), /rate_limited/);
+  });
 });

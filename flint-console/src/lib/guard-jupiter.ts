@@ -143,9 +143,17 @@ async function requestJson<T>(url: string, init?: RequestInit) {
       ...init,
       signal: controller.signal,
     });
-    const payload = (await response.json()) as T & { error?: string };
+    const raw = await response.text();
+    const payload = safeParseJson<T & { error?: string }>(raw);
     if (!response.ok) {
-      throw new Error(payload.error || `request failed: ${response.status}`);
+      throw new Error(
+        payload?.error ||
+          describeHttpFailure(response.status, raw) ||
+          `request failed: ${response.status}`
+      );
+    }
+    if (!payload) {
+      throw new Error("invalid_json_response");
     }
     return payload;
   } catch (error) {
@@ -159,4 +167,20 @@ async function requestJson<T>(url: string, init?: RequestInit) {
   } finally {
     clearTimeout(timeout);
   }
+}
+
+function safeParseJson<T>(raw: string) {
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
+}
+
+function describeHttpFailure(status: number, raw: string) {
+  const normalized = raw.trim();
+  if (status === 429 || /^rate limit/i.test(normalized)) {
+    return "rate_limited";
+  }
+  return normalized ? normalized.slice(0, 200) : null;
 }

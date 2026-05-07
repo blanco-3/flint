@@ -43,6 +43,10 @@ export function buildSafetyFeedSnapshot(items: SafetyFeedItem[]) {
     criticalCount: items.filter((item) => item.severity === "critical").length,
     degradedCount: items.filter((item) => item.posture === "degraded").length,
     blockedCount: items.filter((item) => item.blockedRoute).length,
-    items: [...items].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || a.incidentId.localeCompare(b.incidentId)),
+    items: [...items].sort(
+      (a, b) =>
+        (b.updatedAt ?? "").localeCompare(a.updatedAt ?? "") ||
+        a.incidentId.localeCompare(b.incidentId)
+    ),
   };
 }

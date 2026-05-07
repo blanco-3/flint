@@ -294,7 +294,7 @@ export default function App() {
   }, [setActionProfileId, setDataMode, setPolicyPreset, setSignals]);
 
   useEffect(() => {
-    void fetchLiveMarketPairs(TOKEN_OPTIONS.map((token) => token.mint), 40)
+    void fetchLiveMarketPairs(TOKEN_OPTIONS.map((token) => token.mint), 200)
       .then((pairs) => {
         const discovered = pairs.flatMap((pair) => [
           {

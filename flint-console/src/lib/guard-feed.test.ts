@@ -62,6 +62,8 @@ describe("guard safety feed", () => {
         incidentId: "a",
         bundleId: "bundle-a",
         profile: "retail-user",
+        state: "open",
+        source: "live-session",
         severity: "critical",
         posture: "degraded",
         executionRecommendation: "prefer-safe-route",
@@ -73,11 +75,15 @@ describe("guard safety feed", () => {
         affectedPairs: [],
         affectedVenues: [],
         nextActions: [],
+        publishedAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
       },
       {
         incidentId: "b",
         bundleId: "bundle-b",
         profile: "bot-executor",
+        state: "open",
+        source: "live-session",
         severity: "watch",
         posture: "clear",
         executionRecommendation: "allow-best-route",
@@ -89,6 +95,8 @@ describe("guard safety feed", () => {
         affectedPairs: [],
         affectedVenues: [],
         nextActions: [],
+        publishedAt: "2026-01-01T00:00:01.000Z",
+        updatedAt: "2026-01-01T00:00:01.000Z",
       },
     ]);
 
