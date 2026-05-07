@@ -1894,6 +1894,11 @@ export default function App() {
                 <MetricCard label={copy.watch.criticalIncidents} value={String(watchSnapshot.criticalIncidentCount)} />
                 <MetricCard label={copy.watch.degradedIncidents} value={String(watchSnapshot.degradedIncidentCount)} />
                 <MetricCard label={copy.watch.blockedRoutes} value={String(watchSnapshot.blockedRouteCount)} />
+                <MetricCard
+                  label={copy.watch.changedNow}
+                  value={String(watchServerSnapshot?.changedCount ?? 0)}
+                  detail={watchServerSnapshot ? watchServerSnapshot.snapshotVersion : copy.common.notLoaded}
+                />
               </section>
 
               {marketThemes.length ? (
