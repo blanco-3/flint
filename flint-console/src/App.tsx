@@ -521,7 +521,7 @@ export default function App() {
       }
       setWalletAddress(publicKey);
       appendLog(setActivityLog, {
-        title: "Wallet connected",
+        title: copy.activity.walletConnected,
         detail: publicKey,
         severity: "info",
         kind: "activity",
@@ -530,7 +530,7 @@ export default function App() {
       const message = error instanceof Error ? error.message : "wallet_connect_failed";
       setWalletError(message);
       appendLog(setActivityLog, {
-        title: "Wallet connection failed",
+        title: copy.activity.walletConnectFailed,
         detail: message,
         severity: "warning",
         kind: "activity",
@@ -543,7 +543,7 @@ export default function App() {
     setWalletAddress(null);
     clearTransientState();
     appendLog(setActivityLog, {
-      title: "Wallet disconnected",
+      title: copy.activity.walletDisconnected,
       detail: "Cleared live order state.",
       severity: "info",
       kind: "activity",
@@ -639,7 +639,7 @@ export default function App() {
 
     if (!background) {
       appendLog(setActivityLog, {
-        title: "Route comparison updated",
+        title: copy.activity.routeUpdated,
         detail: describeComparison(comparisonState),
         severity:
           comparisonState.baseAssessment.status === "blocked" ? "warning" : "info",
@@ -649,7 +649,7 @@ export default function App() {
     }
 
     return comparisonState;
-  }, [form.amount, form.inputMint, form.outputMint, form.slippageBps, policy, safeMode, setActivityLog]);
+  }, [copy.activity.routeUpdated, form.amount, form.inputMint, form.outputMint, form.slippageBps, policy, safeMode, setActivityLog]);
 
   useEffect(() => {
     if (activePanel !== "trade" || dataMode !== "live" || tokenSelectorSide) {
@@ -718,7 +718,7 @@ export default function App() {
       const message = describeNetworkError(error, "quote");
       setComparisonError(message);
       appendLog(setActivityLog, {
-        title: "Route evaluation failed",
+        title: copy.activity.routeEvaluationFailed,
         detail: message,
         severity: "critical",
         kind: "incident",
@@ -765,7 +765,7 @@ export default function App() {
         connection
       );
       appendLog(setActivityLog, {
-        title: "Swap submitted",
+        title: copy.activity.swapSubmitted,
         detail: signatures.join(", "),
         severity: "info",
         kind: "activity",
@@ -773,7 +773,7 @@ export default function App() {
     } catch (error) {
       const message = error instanceof Error ? error.message : "swap_execution_failed";
       appendLog(setActivityLog, {
-        title: "Swap execution failed",
+        title: copy.activity.swapFailed,
         detail: message,
         severity: "critical",
         kind: "incident",
@@ -812,7 +812,7 @@ export default function App() {
       setOrdersRefreshedAt(new Date().toISOString());
       setOrderError(null);
       appendLog(setActivityLog, {
-        title: "Open trigger orders loaded",
+        title: copy.activity.ordersLoaded,
         detail: `${response.orders.length} active order(s)`,
         severity: "info",
         kind: "activity",
@@ -821,7 +821,7 @@ export default function App() {
       const message = describeNetworkError(error, "orders");
       setOrderError(message);
       appendLog(setActivityLog, {
-        title: "Open trigger order fetch failed",
+        title: copy.activity.ordersFetchFailed,
         detail: message,
         severity: "warning",
         kind: "incident",
@@ -895,7 +895,7 @@ export default function App() {
       });
       if (!background) {
         appendLog(setActivityLog, {
-          title: "Safety feed refreshed",
+          title: copy.activity.feedRefreshed,
           detail: `${snapshot.itemCount} incident item(s) loaded from relay.`,
           severity: "info",
           kind: "activity",
@@ -911,7 +911,7 @@ export default function App() {
       });
       if (!background) {
         appendLog(setActivityLog, {
-          title: "Safety feed refresh degraded",
+          title: copy.activity.feedRefreshDegraded,
           detail: "Relay was unavailable. Flint kept the local incident snapshot active.",
           severity: "warning",
           kind: "incident",
@@ -1020,7 +1020,7 @@ export default function App() {
       });
       if (!background) {
         appendLog(setActivityLog, {
-          title: "Live market board refreshed",
+          title: copy.activity.marketBoardRefreshed,
           detail: `${sorted.length} monitored route(s) rescored.`,
           severity: "info",
           kind: "activity",
@@ -1033,7 +1033,7 @@ export default function App() {
       setWatchExpiresAt(Date.now() + WATCH_REFRESH_MS);
       if (!background) {
         appendLog(setActivityLog, {
-          title: "Market board refresh degraded",
+          title: copy.activity.marketBoardDegraded,
           detail: "Live quotes or pool metadata were unavailable. Flint kept the last board state.",
           severity: "warning",
           kind: "incident",
@@ -1050,7 +1050,7 @@ export default function App() {
     try {
       await publishSafetyFeedItem(currentFeedItem);
       appendLog(setActivityLog, {
-        title: "Incident published to safety feed",
+        title: copy.activity.incidentPublished,
         detail: currentFeedItem.incidentId,
         severity: "info",
         kind: "activity",
@@ -1079,7 +1079,7 @@ export default function App() {
       const parsed = parseDeterministicAuditBundle(JSON.parse(raw));
       setImportedBundle(parsed);
       appendLog(setActivityLog, {
-        title: "Incident bundle imported",
+        title: copy.activity.bundleImported,
         detail: parsed.bundleId,
         severity: "info",
         kind: "activity",
@@ -1088,7 +1088,7 @@ export default function App() {
       const message = error instanceof Error ? error.message : "bundle_import_failed";
       setFeedError(message);
       appendLog(setActivityLog, {
-        title: "Incident bundle import failed",
+        title: copy.activity.bundleImportFailed,
         detail: message,
         severity: "critical",
         kind: "incident",
@@ -1139,7 +1139,7 @@ export default function App() {
     setPanicMode(true);
     setActivePanel("protect");
     appendLog(setActivityLog, {
-      title: "Protect desk armed from watch incident",
+      title: copy.activity.protectDeskArmed,
       detail: item.incidentId,
       severity: "warning",
       kind: "incident",
@@ -1265,7 +1265,7 @@ export default function App() {
     anchor.click();
     window.URL.revokeObjectURL(url);
     appendLog(setActivityLog, {
-      title: "Incident bundle exported",
+      title: copy.activity.bundleExported,
       detail: "Downloaded the current incident, log, and risk snapshot as JSON.",
       severity: "info",
       kind: "activity",
@@ -2157,7 +2157,7 @@ export default function App() {
                 <MetricCard label={copy.common.dataMode} value={dataMode === "demo" ? copy.common.labMode : copy.common.liveApis} />
                 <MetricCard
                   label={copy.settings.kernelLabel}
-                  value="Devnet verified"
+                  value={copy.settings.verifiedValue}
                   detail={shortenAddress(devnetDeploy.programId)}
                 />
                 <MetricCard label={copy.settings.executionPath} value="Jupiter Metis" />
