@@ -198,6 +198,7 @@ Notes:
 Watch risk model notes:
 
 - `docs/watch-risk-model.md`
+- `docs/flint-positioning.md`
 
 ## Economic Model
 
