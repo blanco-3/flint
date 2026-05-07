@@ -1,0 +1,36 @@
+# Context Snapshot
+
+- task statement:
+  - Complete Phase A / B / C for Flint Guard as a live product.
+  - Phase A: make Trade feel like a real swap product.
+  - Phase B: make Watch an automatic risk board instead of a manual watchlist toy.
+  - Phase C: make Protect feel like a real incident-response tool.
+- desired outcome:
+  - The default product posture is live-first, not demo-first.
+  - Seeded demo controls are pushed into a secondary lab/internal posture and do not dominate the main product path.
+  - Trade shows clear live route posture, execution recommendation, and meaningful route reasons.
+  - Watch automatically visualizes risky major assets/pairs/venues with emphasized high-value signals.
+  - Protect clearly communicates current exposure, why orders are risky, and what the operator should do now.
+- known facts/evidence:
+  - `flint-console/src/App.tsx` currently defaults to `watch` and `live`, but still contains demo branches and a visible lab banner when persisted local state is stale.
+  - Trade currently has basic quote/swap behavior, but product-grade route explanation and token-selection ergonomics are weak.
+  - Watch currently includes a manual watchlist and imported bundle affordances that feel secondary to the real desired dashboard.
+  - Protect already has live order fetch / cancel wiring, panic evaluation, and action-plan logic.
+  - Existing pure helpers cover route risk, order risk, incident packs, reports, audit bundles, safety feed, locale, and market-board sorting.
+- constraints:
+  - Keep Trade / Protect / Watch all alive.
+  - No new dependencies.
+  - Keep logic in `src/lib/` where reasonable; keep UI thin.
+  - Do not regress relay / SDK / existing test coverage.
+  - Commit, push, and rebuild after each Ralph update phase.
+- unknowns/open questions:
+  - How much visible dashboard density can be added before the current layout needs deeper structural redesign.
+  - Whether persisted localStorage is still forcing some existing users into demo mode.
+  - How far the current Jupiter + DexScreener inputs can go before a broader market data layer is needed.
+- likely codebase touchpoints:
+  - `flint-console/src/App.tsx`
+  - `flint-console/src/index.css`
+  - `flint-console/src/lib/guard-locale.ts`
+  - `flint-console/src/lib/guard-watch.ts`
+  - `flint-console/src/lib/guard-market-board.ts`
+  - `flint-console/src/lib/guard-types.ts`

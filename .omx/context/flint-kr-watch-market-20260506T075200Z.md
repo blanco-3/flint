@@ -1,0 +1,23 @@
+# Context Snapshot
+
+- task statement:
+  - Use the `im-not-ai` Korean humanization approach to make Flint Guard's Korean copy sound more natural.
+  - Strengthen Watch with more obvious visualization/leaderboard density.
+  - Check product need and market overlap.
+- desired outcome:
+  - Visible Korean strings read like natural Korean, not literal translationese.
+  - Watch feels more like a ranked live market board than a loose dashboard.
+  - Product need and overlap are assessed against current market references.
+- known facts/evidence:
+  - `im-not-ai` is a Korean AI-writing humanizer focused on removing translationese and mechanical phrasing.
+  - Flint Guard already has EN/KR locale infrastructure in `flint-console/src/lib/guard-locale.ts`.
+  - Watch already has live pool board, asset health, venue pressure, and risk themes.
+  - Trade now has live quote timer and a searchable token selector.
+- constraints:
+  - Keep Trade / Watch / Protect intact.
+  - No new dependencies.
+  - Commit and push after the implementation batch once verification is green.
+- likely touchpoints:
+  - `flint-console/src/lib/guard-locale.ts`
+  - `flint-console/src/App.tsx`
+  - `flint-console/src/index.css`

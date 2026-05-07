@@ -1,0 +1,27 @@
+# Context Snapshot
+
+- task statement:
+  - Implement the Flint Watch risk-score design directly in code.
+  - Split display logic into `watchRiskScore` and `importanceScore`.
+  - Use those scores to drive heatmap/leaderboard visualization.
+- desired outcome:
+  - Watch shows risk as a 0-100 score where higher means riskier.
+  - Importance controls tile size / prominence separately from risk.
+  - Each monitored pool/pair exposes top factors and a one-line explanation.
+  - Watch UI leads with heatmap plus ranked boards.
+- known facts/evidence:
+  - Flint Watch already has live market rows, asset rankings, venue rankings, and risk themes.
+  - Current market rows use `RouteAssessment.score`, where lower scores are riskier, so display semantics currently fight intuition.
+  - `guard-market-board.ts` already contains sorting and aggregation helpers.
+  - `guard-risk.ts` already exposes route reasons, blocked states, and token/venue/pair risk inputs.
+- constraints:
+  - No new dependencies.
+  - Keep logic mostly in `src/lib/`.
+  - Preserve Trade / Protect / Watch structure.
+  - Commit and push after verification.
+- likely touchpoints:
+  - `flint-console/src/lib/guard-types.ts`
+  - `flint-console/src/lib/guard-market-board.ts`
+  - new risk-score helper under `src/lib/`
+  - `flint-console/src/App.tsx`
+  - `flint-console/src/index.css`
