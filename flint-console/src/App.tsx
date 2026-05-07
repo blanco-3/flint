@@ -47,9 +47,10 @@ import { buildSafetyFeedItem, buildSafetyFeedSnapshot } from "./lib/guard-feed";
 import { buildIncidentPack, mergePolicyWithIncident } from "./lib/guard-incident";
 import {
 } from "./lib/guard-market-board";
-import { fetchPoolSnapshots } from "./lib/guard-market-data";
+import { fetchLiveMarketPairs, fetchPoolSnapshots } from "./lib/guard-market-data";
 import { buildDecisionReport, buildPanicActionPlan } from "./lib/guard-report";
 import { buildWatchSnapshot } from "./lib/guard-watch";
+import { buildLocalWatchSnapshot } from "./lib/guard-watch-fallback";
 import {
   evaluateQuoteRisk,
   evaluateTriggerOrders,
@@ -90,7 +91,15 @@ import {
   type WatchServerSnapshot,
 } from "./lib/guard-types";
 import type { Dispatch, SetStateAction } from "react";
-import { TOKEN_OPTIONS, tokenByMint, tokenChoices, type TokenOption } from "./lib/token-options";
+import {
+  TOKEN_OPTIONS,
+  hydrateTokenOption,
+  registerTokenOptions,
+  searchDexTokenOptions,
+  tokenByMint,
+  tokenChoices,
+  type TokenOption,
+} from "./lib/token-options";
 import "./index.css";
 
 const STORAGE_KEYS = {
@@ -196,6 +205,8 @@ export default function App() {
   const [isBackgroundRefreshingQuote, setIsBackgroundRefreshingQuote] = useState(false);
   const [tokenSelectorSide, setTokenSelectorSide] = useState<"input" | "output" | null>(null);
   const [tokenSearch, setTokenSearch] = useState("");
+  const [tokenCatalogVersion, setTokenCatalogVersion] = useState(0);
+  const [isSearchingTokens, setIsSearchingTokens] = useState(false);
   const [showLabControls, setShowLabControls] = useState(false);
   const copy = useMemo(() => localeCopy(locale), [locale]);
 
@@ -230,16 +241,18 @@ export default function App() {
   const selectedOutputToken = useMemo(() => tokenByMint(form.outputMint), [form.outputMint]);
 
   const filteredTokenChoices = useMemo(() => {
+    void tokenCatalogVersion;
     const query = tokenSearch.trim().toLowerCase();
-    if (!query) return tokenChoices();
-    return tokenChoices().filter((token) => {
+    const choices = tokenChoices();
+    if (!query) return choices;
+    return choices.filter((token) => {
       return (
         token.symbol.toLowerCase().includes(query) ||
         token.name.toLowerCase().includes(query) ||
         token.mint.toLowerCase().includes(query)
       );
     });
-  }, [tokenSearch]);
+  }, [tokenSearch, tokenCatalogVersion]);
 
   const quoteCountdownSeconds = useMemo(() => {
     if (!quoteExpiresAt) return null;
@@ -279,6 +292,53 @@ export default function App() {
     setActionProfileId(defaultActionProfileForPreset("retail"));
     window.localStorage.setItem(STORAGE_KEYS.version, STORAGE_VERSION);
   }, [setActionProfileId, setDataMode, setPolicyPreset, setSignals]);
+
+  useEffect(() => {
+    void fetchLiveMarketPairs(TOKEN_OPTIONS.map((token) => token.mint), 40)
+      .then((pairs) => {
+        const discovered = pairs.flatMap((pair) => [
+          {
+            mint: pair.baseToken.address,
+            symbol: pair.baseToken.symbol,
+            name: pair.baseToken.name,
+            decimals: tokenByMint(pair.baseToken.address)?.decimals ?? 6,
+          },
+          {
+            mint: pair.quoteToken.address,
+            symbol: pair.quoteToken.symbol,
+            name: pair.quoteToken.name,
+            decimals: tokenByMint(pair.quoteToken.address)?.decimals ?? 6,
+          },
+        ]);
+        if (registerTokenOptions(discovered)) {
+          setTokenCatalogVersion((current) => current + 1);
+        }
+      })
+      .catch(() => {
+        // Keep the base registry when discovery is unavailable.
+      });
+  }, []);
+
+  useEffect(() => {
+    if (!tokenSelectorSide) return;
+    const query = tokenSearch.trim();
+    if (query.length < 2) return;
+
+    const timer = window.setTimeout(() => {
+      setIsSearchingTokens(true);
+      void searchDexTokenOptions(query)
+        .then((tokens) => {
+          if (tokens.length) {
+            setTokenCatalogVersion((current) => current + 1);
+          }
+        })
+        .finally(() => {
+          setIsSearchingTokens(false);
+        });
+    }, 250);
+
+    return () => window.clearTimeout(timer);
+  }, [tokenSearch, tokenSelectorSide]);
 
   const activeScenario = useMemo(() => demoScenarioById(demoScenario), [demoScenario]);
 
@@ -997,17 +1057,30 @@ export default function App() {
     try {
       const snapshot = await fetchWatchSnapshot(undefined, !background);
       applyWatchSnapshot(snapshot, background);
-    } catch (error) {
-      if (!background && !marketBoard.length) {
-        setMarketBoardError(describeNetworkError(error, "market"));
-      }
-      if (!background) {
-        appendLog(setActivityLog, {
-          title: copy.activity.marketBoardDegraded,
-          detail: "Live quotes or pool metadata were unavailable. Flint kept the last board state.",
-          severity: "warning",
-          kind: "incident",
-        });
+    } catch {
+      try {
+        const fallback = await buildLocalWatchSnapshot(policy);
+        applyWatchSnapshot(fallback, true);
+        if (!background) {
+          appendLog(setActivityLog, {
+            title: copy.activity.marketBoardDegraded,
+            detail: "Relay was unavailable. Flint fell back to a local degraded market board.",
+            severity: "warning",
+            kind: "incident",
+          });
+        }
+      } catch (fallbackError) {
+        if (!background && !marketBoard.length) {
+          setMarketBoardError(describeNetworkError(fallbackError, "market"));
+        }
+        if (!background) {
+          appendLog(setActivityLog, {
+            title: copy.activity.marketBoardDegraded,
+            detail: "Live quotes or pool metadata were unavailable. Flint kept the last board state.",
+            severity: "warning",
+            kind: "incident",
+          });
+        }
       }
     } finally {
       setIsLoadingMarketBoard(false);
@@ -1166,7 +1239,9 @@ export default function App() {
     }));
   }
 
-  function selectToken(side: "input" | "output", mint: string) {
+  async function selectToken(side: "input" | "output", mint: string) {
+    await hydrateTokenOption(mint).catch(() => null);
+    setTokenCatalogVersion((current) => current + 1);
     setForm((current) => ({
       ...current,
       inputMint: side === "input" ? mint : current.inputMint,
@@ -2287,11 +2362,12 @@ export default function App() {
           query={tokenSearch}
           onQueryChange={setTokenSearch}
           tokens={filteredTokenChoices}
+          isSearching={isSearchingTokens}
           onClose={() => {
             setTokenSelectorSide(null);
             setTokenSearch("");
           }}
-          onSelect={(mint) => selectToken(tokenSelectorSide, mint)}
+          onSelect={(mint) => void selectToken(tokenSelectorSide, mint)}
         />
       ) : null}
     </div>
@@ -2498,6 +2574,7 @@ function TokenSelectorModal({
   query,
   onQueryChange,
   tokens,
+  isSearching,
   onClose,
   onSelect,
 }: {
@@ -2506,6 +2583,7 @@ function TokenSelectorModal({
   query: string;
   onQueryChange: (next: string) => void;
   tokens: TokenOption[];
+  isSearching: boolean;
   onClose: () => void;
   onSelect: (mint: string) => void;
 }) {
@@ -2538,6 +2616,7 @@ function TokenSelectorModal({
             autoFocus
           />
         </label>
+        {isSearching ? <p className="heatmap-copy">Searching live Solana tokens...</p> : null}
         <div className="token-modal-list">
           {tokens.map((token) => (
             <button
