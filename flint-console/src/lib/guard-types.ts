@@ -251,10 +251,35 @@ export type WatchSourceStatus = {
   jupiterQuote: "live" | "degraded";
 };
 
+export type WatchScoreModelFactor = {
+  id: string;
+  title: string;
+  dataSource: string;
+  rationale: string;
+  maxScore: number;
+};
+
+export type WatchScoreModel = {
+  version: string;
+  severityBuckets: {
+    clearMax: number;
+    watchMax: number;
+    elevatedMax: number;
+    criticalMin: number;
+  };
+  confidenceRules: {
+    fullRoute: string;
+    pairOnly: string;
+  };
+  factors: WatchScoreModelFactor[];
+};
+
 export type WatchServerSnapshot = {
   snapshotVersion: string;
   updatedAt: string;
   staleAfterMs: number;
+  scoreModelVersion: string;
+  scoreModel: WatchScoreModel;
   sourceStatus: WatchSourceStatus;
   degradedReasons: string[];
   itemCount: number;

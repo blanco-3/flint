@@ -193,6 +193,11 @@ Notes:
 - the console now focuses on the safety-first Flint Guard surface
 - the relay/API alpha, SDK, and operator assets remain separate backend/integration surfaces in this repo
 - incident bundles can be exported from the console for judge/operator review
+- live Watch is moving toward a relay-backed canonical snapshot so users read shared market state instead of purely browser-local assembly
+
+Watch risk model notes:
+
+- `docs/watch-risk-model.md`
 
 ## Economic Model
 

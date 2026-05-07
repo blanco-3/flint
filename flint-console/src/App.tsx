@@ -1987,6 +1987,29 @@ export default function App() {
                   detail={ACTION_PROFILES[actionProfileId].description}
                 />
                 <MetricCard
+                  label={copy.watch.scoreModel}
+                  value={watchServerSnapshot?.scoreModelVersion ?? copy.common.none}
+                  detail={
+                    watchServerSnapshot
+                      ? `${watchServerSnapshot.scoreModel.factors.length} factors`
+                      : copy.common.notLoaded
+                  }
+                />
+                <MetricCard
+                  label={copy.watch.sourceHealth}
+                  value={
+                    watchServerSnapshot &&
+                    Object.values(watchServerSnapshot.sourceStatus).every((value) => value === "live")
+                      ? copy.watch.refreshReady
+                      : copy.watch.degraded
+                  }
+                  detail={
+                    watchServerSnapshot?.degradedReasons.length
+                      ? watchServerSnapshot.degradedReasons.join(", ")
+                      : copy.watch.fullRoute
+                  }
+                />
+                <MetricCard
                   label={copy.watch.marketStatus}
                   value={marketRefreshedAt ? copy.watch.refreshReady : copy.common.none}
                   detail={
@@ -1996,6 +2019,17 @@ export default function App() {
                   }
                 />
               </section>
+
+              {watchServerSnapshot ? (
+                <section className="info-card">
+                  <span className="panel-kicker">{copy.watch.scoreModel}</span>
+                  <p>
+                    {watchServerSnapshot.scoreModel.factors
+                      .map((factor) => `${factor.title} (${factor.maxScore})`)
+                      .join(" · ")}
+                  </p>
+                </section>
+              ) : null}
 
               <section className="feed-list">
                 {(feedSnapshot?.items ?? []).length ? (

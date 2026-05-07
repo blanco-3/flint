@@ -45,6 +45,70 @@ const TOKEN_UNIVERSE = [
 const MAJOR_SYMBOLS = new Set(TOKEN_UNIVERSE.map((token) => token.symbol));
 const DENYLIST_VENUES = new Set(["pumpfun amm", "unknown"]);
 const PANIC_VENUES = new Set(["pumpfun amm"]);
+const SCORE_MODEL = {
+  version: "watch-v1",
+  severityBuckets: {
+    clearMax: 24,
+    watchMax: 49,
+    elevatedMax: 74,
+    criticalMin: 75,
+  },
+  confidenceRules: {
+    fullRoute: "Live quote, venue path, and pair stress signals are all available.",
+    pairOnly: "Route quote is unavailable, so only pair-level stress signals are scored.",
+  },
+  factors: [
+    {
+      id: "liquidity",
+      title: "Shallow liquidity",
+      dataSource: "DexScreener pair liquidity",
+      rationale: "Thin pools break execution quality first when stress accelerates.",
+      maxScore: 40,
+    },
+    {
+      id: "freshness",
+      title: "Fresh pool",
+      dataSource: "DexScreener pairCreatedAt",
+      rationale: "Young pools have weaker market history and are easier to destabilize.",
+      maxScore: 30,
+    },
+    {
+      id: "price-shock",
+      title: "Price shock",
+      dataSource: "DexScreener m5/h1 price change",
+      rationale: "Fast dislocations often precede route breakage and forced exits.",
+      maxScore: 30,
+    },
+    {
+      id: "flow",
+      title: "Sell pressure",
+      dataSource: "DexScreener m5 buys/sells",
+      rationale: "One-sided flow is a practical early warning for liquidity deterioration.",
+      maxScore: 30,
+    },
+    {
+      id: "venue",
+      title: "Venue trust",
+      dataSource: "Jupiter route labels / pair venue",
+      rationale: "Execution venues with weaker trust posture deserve higher routing friction.",
+      maxScore: 45,
+    },
+    {
+      id: "token",
+      title: "Token risk",
+      dataSource: "Observed token set",
+      rationale: "Long-tail tokens carry more uncertainty than major monitored assets.",
+      maxScore: 10,
+    },
+    {
+      id: "execution",
+      title: "Execution fragility",
+      dataSource: "Jupiter quote route hops and price impact",
+      rationale: "Fragile route shapes and missing quotes are direct execution risk signals.",
+      maxScore: 30,
+    },
+  ],
+};
 
 function createWatchService({
   fetchImpl = fetch,
@@ -187,6 +251,8 @@ async function buildSnapshot({
     snapshotVersion: updatedAt,
     updatedAt,
     staleAfterMs: cacheMsOrDefault(),
+    scoreModelVersion: SCORE_MODEL.version,
+    scoreModel: SCORE_MODEL,
     sourceStatus,
     degradedReasons,
     itemCount: marketBoard.length,
