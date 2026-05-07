@@ -1,5 +1,5 @@
 use crate::errors::FlintError;
-use crate::state::{IntentAccount, IntentStatus, AUCTION_WINDOW_SLOTS};
+use crate::state::{require_not_paused, IntentAccount, IntentStatus, AUCTION_WINDOW_SLOTS};
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Mint, Token, TokenAccount, Transfer};
 
@@ -11,6 +11,7 @@ pub fn handler(
     min_output_amount: u64,
     _nonce: u64,
 ) -> Result<()> {
+    require_not_paused(&ctx.accounts.pause_state)?;
     require!(input_amount > 0, FlintError::ZeroAmount);
     require!(min_output_amount > 0, FlintError::ZeroAmount);
 
@@ -72,8 +73,12 @@ pub struct SubmitIntent<'info> {
     #[account(mut)]
     pub user: Signer<'info>,
 
-    pub input_mint: Account<'info, Mint>,
-    pub output_mint: Account<'info, Mint>,
+    /// CHECK: pause PDA can be empty/system-owned until the first explicit pause toggle.
+    #[account(seeds = [b"pause"], bump)]
+    pub pause_state: UncheckedAccount<'info>,
+
+    pub input_mint: Box<Account<'info, Mint>>,
+    pub output_mint: Box<Account<'info, Mint>>,
 
     /// 유저의 input 토큰 계정
     #[account(
@@ -81,7 +86,7 @@ pub struct SubmitIntent<'info> {
         associated_token::mint = input_mint,
         associated_token::authority = user,
     )]
-    pub user_token_account: Account<'info, TokenAccount>,
+    pub user_token_account: Box<Account<'info, TokenAccount>>,
 
     /// 에스크로 토큰 계정 (IntentAccount PDA가 authority)
     #[account(
@@ -90,7 +95,7 @@ pub struct SubmitIntent<'info> {
         associated_token::mint = input_mint,
         associated_token::authority = intent,
     )]
-    pub escrow_token_account: Account<'info, TokenAccount>,
+    pub escrow_token_account: Box<Account<'info, TokenAccount>>,
 
     /// IntentAccount PDA: seeds = [b"intent", user, nonce]
     /// nonce로 동일 유저가 여러 인텐트를 동시에 열 수 있음
@@ -101,7 +106,7 @@ pub struct SubmitIntent<'info> {
         seeds = [b"intent", user.key().as_ref(), &nonce.to_le_bytes()],
         bump,
     )]
-    pub intent: Account<'info, IntentAccount>,
+    pub intent: Box<Account<'info, IntentAccount>>,
 
     pub token_program: Program<'info, Token>,
     pub associated_token_program: Program<'info, anchor_spl::associated_token::AssociatedToken>,

@@ -25,6 +25,23 @@
           "signer": true
         },
         {
+          "name": "pause_state",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  97,
+                  117,
+                  115,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
           "name": "input_mint"
         },
         {
@@ -114,6 +131,23 @@
           "name": "solver",
           "writable": true,
           "signer": true
+        },
+        {
+          "name": "pause_state",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  97,
+                  117,
+                  115,
+                  101
+                ]
+              }
+            ]
+          }
         },
         {
           "name": "solver_registry",
@@ -212,6 +246,23 @@
           "signer": true
         },
         {
+          "name": "pause_state",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  97,
+                  117,
+                  115,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
           "name": "intent",
           "writable": true
         },
@@ -294,6 +345,23 @@
           "name": "solver",
           "writable": true,
           "signer": true
+        },
+        {
+          "name": "pause_state",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  97,
+                  117,
+                  115,
+                  101
+                ]
+              }
+            ]
+          }
         },
         {
           "name": "solver_registry",
@@ -574,6 +642,29 @@
           "name": "system_program",
           "address": "11111111111111111111111111111111"
         }
+        ,
+        {
+          "name": "pause_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  97,
+                  117,
+                  115,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
       ],
       "args": [
         {
@@ -601,6 +692,7 @@
       "accounts": [
         {
           "name": "admin",
+          "writable": true,
           "signer": true
         },
         {
@@ -627,6 +719,73 @@
         {
           "name": "new_slash_authority",
           "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "set_pause",
+      "discriminator": [
+        63,
+        32,
+        154,
+        2,
+        56,
+        103,
+        79,
+        45
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "pause_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  97,
+                  117,
+                  115,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "paused",
+          "type": "bool"
         }
       ]
     },
@@ -733,20 +892,33 @@
         217
       ]
     },
-    {
-      "name": "ConfigAccount",
-      "discriminator": [
-        189,
-        255,
-        97,
-        70,
-        186,
-        189,
-        24,
-        102
-      ]
-    }
-  ],
+  {
+    "name": "ConfigAccount",
+    "discriminator": [
+      189,
+      255,
+      97,
+      70,
+      186,
+      189,
+      24,
+      102
+    ]
+  },
+  {
+    "name": "PauseState",
+    "discriminator": [
+      21,
+      123,
+      173,
+      77,
+      60,
+      203,
+      197,
+      145
+    ]
+  }
+],
   "events": [
     {
       "name": "IntentSubmitted",
@@ -965,6 +1137,11 @@
       "code": 6024,
       "name": "SelfBidNotAllowed",
       "msg": "인텐트 제출자는 자기 인텐트에 입찰할 수 없습니다"
+    },
+    {
+      "code": 6025,
+      "name": "ProtocolPaused",
+      "msg": "프로토콜이 일시 중지되어 이 작업을 수행할 수 없습니다"
     }
   ],
   "types": [
@@ -1306,29 +1483,45 @@
         ]
       }
     },
-    {
-      "name": "ConfigAccount",
-      "type": {
-        "kind": "struct",
-        "fields": [
+  {
+    "name": "ConfigAccount",
+    "type": {
+      "kind": "struct",
+      "fields": [
           {
             "name": "admin",
             "type": "pubkey"
           },
-          {
-            "name": "slash_authority",
-            "type": "pubkey"
-          },
-          {
-            "name": "stake_lockup_slots",
-            "type": "u64"
-          },
-          {
-            "name": "bump",
-            "type": "u8"
-          }
-        ]
-      }
+        {
+          "name": "slash_authority",
+          "type": "pubkey"
+        },
+        {
+          "name": "stake_lockup_slots",
+          "type": "u64"
+        },
+        {
+          "name": "bump",
+          "type": "u8"
+        }
+      ]
     }
-  ]
+  },
+  {
+    "name": "PauseState",
+    "type": {
+      "kind": "struct",
+      "fields": [
+        {
+          "name": "is_paused",
+          "type": "bool"
+        },
+        {
+          "name": "bump",
+          "type": "u8"
+        }
+      ]
+    }
+  }
+]
 }

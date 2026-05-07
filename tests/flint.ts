@@ -37,6 +37,7 @@ describe("flint", () => {
   let solverOutputAta: PublicKey;
   let userOutputAta: PublicKey;
   let configPda: PublicKey;
+  let pausePda: PublicKey;
   let solverRegistryPda: PublicKey;
   let challengerRegistryPda: PublicKey;
   let freshSolverRegistryPda: PublicKey;
@@ -68,6 +69,10 @@ describe("flint", () => {
       ],
       programId
     )[0];
+  }
+
+  function derivePausePda() {
+    return PublicKey.findProgramAddressSync([Buffer.from("pause")], programId)[0];
   }
 
   function deriveBidPda(intentPda: PublicKey, solverPubkey: PublicKey) {
@@ -118,7 +123,28 @@ describe("flint", () => {
       })
       .rpc();
 
+    await setPause(false);
+
     return program.account.configAccount.fetch(configPda);
+  }
+
+  async function setPause(paused: boolean, admin: Keypair | null = null) {
+    const signer = admin ?? null;
+    const adminPublicKey = signer ? signer.publicKey : provider.wallet.publicKey;
+
+    const builder = program.methods.setPause(paused).accounts({
+      admin: adminPublicKey,
+      config: configPda,
+      pauseState: pausePda,
+      systemProgram: SystemProgram.programId,
+    });
+
+    if (signer) {
+      await builder.signers([signer]).rpc();
+      return;
+    }
+
+    await builder.rpc();
   }
 
   async function registerSolverAccount(signer: Keypair) {
@@ -128,6 +154,7 @@ describe("flint", () => {
       .registerSolver(INITIAL_STAKE)
       .accounts({
         solver: signer.publicKey,
+        pauseState: pausePda,
         solverRegistry: registryPda,
         systemProgram: SystemProgram.programId,
       })
@@ -149,6 +176,7 @@ describe("flint", () => {
       .submitIntent(inputAmount, minOutputAmount, nonce)
       .accounts({
         user: user.publicKey,
+        pauseState: pausePda,
         inputMint,
         outputMint,
         userTokenAccount: userInputAta,
@@ -180,6 +208,7 @@ describe("flint", () => {
       .submitBid(params.outputAmount)
       .accounts({
         solver: params.signer.publicKey,
+        pauseState: pausePda,
         solverRegistry: params.solverRegistry,
         intent: params.intentPda,
         bid: bidPda,
@@ -209,6 +238,7 @@ describe("flint", () => {
 
     inputMint = await createMint(provider.connection, user, user.publicKey, null, 6);
     outputMint = await createMint(provider.connection, solver, solver.publicKey, null, 6);
+    pausePda = derivePausePda();
 
     userInputAta = await createAssociatedTokenAccount(
       provider.connection,
@@ -311,6 +341,23 @@ describe("flint", () => {
     assert.equal(registry.activeWinningBids.toString(), "0");
   });
 
+  it("admin만 pause를 토글할 수 있다", async () => {
+    try {
+      await setPause(true, user);
+      assert.fail("expected UnauthorizedConfigAdmin");
+    } catch (error) {
+      assert.include(String(error), "UnauthorizedConfigAdmin");
+    }
+
+    await setPause(true);
+    let pauseState = await program.account.pauseState.fetch(pausePda);
+    assert.equal(pauseState.isPaused, true);
+
+    await setPause(false);
+    pauseState = await program.account.pauseState.fetch(pausePda);
+    assert.equal(pauseState.isPaused, false);
+  });
+
   it("챌린저 솔버가 등록된다", async () => {
     await registerSolverAccount(challenger);
     const registry = await program.account.solverRegistryAccount.fetch(
@@ -339,6 +386,54 @@ describe("flint", () => {
     } catch (error) {
       assert.include(String(error), "StakeLockupActive");
     }
+  });
+
+  it("pause 상태에서는 register_solver와 submit_intent가 막히고 cancel_intent는 허용된다", async () => {
+    const cancelNonce = nextNonce();
+    const { intentPda, escrowAta } = await submitIntentAccount(
+      cancelNonce,
+      new BN(25_000_000),
+      new BN(22_000_000)
+    );
+    const intent = await program.account.intentAccount.fetch(intentPda);
+    await waitUntilSlotPassed(intent.closeAtSlot.toNumber());
+
+    await setPause(true);
+
+    const pausedSolver = Keypair.generate();
+    await airdrop(pausedSolver.publicKey);
+    try {
+      await registerSolverAccount(pausedSolver);
+      assert.fail("expected ProtocolPaused");
+    } catch (error) {
+      assert.include(String(error), "ProtocolPaused");
+    }
+
+    try {
+      await submitIntentAccount(nextNonce(), new BN(10_000_000), new BN(9_000_000));
+      assert.fail("expected ProtocolPaused");
+    } catch (error) {
+      assert.include(String(error), "ProtocolPaused");
+    }
+
+    await program.methods
+      .cancelIntent()
+      .accounts({
+        user: user.publicKey,
+        intent: intentPda,
+        escrowTokenAccount: escrowAta,
+        userTokenAccount: userInputAta,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+      })
+      .signers([user])
+      .rpc();
+
+    await assertAccountClosed(intentPda);
+    await assertAccountClosed(escrowAta);
+
+    await setPause(false);
   });
 
   it("미등록 솔버는 bid를 넣을 수 없다", async () => {
@@ -389,6 +484,86 @@ describe("flint", () => {
     }
   });
 
+  it("pause 상태에서는 submit_bid와 settle_auction가 막힌다", async () => {
+    const nonce = nextNonce();
+    const { intentPda, escrowAta } = await submitIntentAccount(
+      nonce,
+      new BN(44_000_000),
+      new BN(40_000_000)
+    );
+
+    await setPause(true);
+    try {
+      await submitBidFor({
+        signer: solver,
+        solverRegistry: solverRegistryPda,
+        intentPda,
+        outputAmount: new BN(41_000_000),
+      });
+      assert.fail("expected ProtocolPaused");
+    } catch (error) {
+      assert.include(String(error), "ProtocolPaused");
+    }
+    await setPause(false);
+
+    const bidPda = await submitBidFor({
+      signer: solver,
+      solverRegistry: solverRegistryPda,
+      intentPda,
+      outputAmount: new BN(41_000_000),
+    });
+
+    const intentAccount = await program.account.intentAccount.fetch(intentPda);
+    await waitUntilSlotPassed(intentAccount.closeAtSlot.toNumber());
+
+    await setPause(true);
+    try {
+      await program.methods
+        .settleAuction()
+        .accounts({
+          solver: solver.publicKey,
+          pauseState: pausePda,
+          intent: intentPda,
+          winningBid: bidPda,
+          solverRegistry: solverRegistryPda,
+          escrowTokenAccount: escrowAta,
+          solverInputTokenAccount: solverInputAta,
+          solverOutputTokenAccount: solverOutputAta,
+          userOutputTokenAccount: userOutputAta,
+          user: user.publicKey,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([solver])
+        .rpc();
+      assert.fail("expected ProtocolPaused");
+    } catch (error) {
+      assert.include(String(error), "ProtocolPaused");
+    }
+    await setPause(false);
+
+    await program.methods
+      .settleAuction()
+      .accounts({
+        solver: solver.publicKey,
+        pauseState: pausePda,
+        intent: intentPda,
+        winningBid: bidPda,
+        solverRegistry: solverRegistryPda,
+        escrowTokenAccount: escrowAta,
+        solverInputTokenAccount: solverInputAta,
+        solverOutputTokenAccount: solverOutputAta,
+        userOutputTokenAccount: userOutputAta,
+        user: user.publicKey,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+      })
+      .signers([solver])
+      .rpc();
+  });
+
   it("정상 경매는 settle_auction 후 계정들을 닫고 체결 카운터를 올린다", async () => {
     const nonce = nextNonce();
     const { intentPda, escrowAta } = await submitIntentAccount(nonce);
@@ -427,6 +602,7 @@ describe("flint", () => {
       .settleAuction()
       .accounts({
         solver: solver.publicKey,
+        pauseState: pausePda,
         intent: intentPda,
         winningBid: bidPda,
         solverRegistry: solverRegistryPda,
@@ -454,7 +630,11 @@ describe("flint", () => {
 
     assert.equal(solverInputAfter - solverInputBefore, BigInt(100_000_000));
     assert.equal(userOutputAfter - userOutputBefore, BigInt(98_000_000));
-    assert.equal(registryAfterSettle.totalFills.toString(), "1");
+    assert.equal(
+      BigInt(registryAfterSettle.totalFills.toString()) -
+        BigInt(registryBefore.totalFills.toString()),
+      BigInt(1)
+    );
     assert.equal(registryAfterSettle.activeWinningBids.toString(), "0");
 
     await assertAccountClosed(intentPda);
@@ -704,6 +884,7 @@ describe("flint", () => {
         .settleAuction()
         .accounts({
           solver: challenger.publicKey,
+          pauseState: pausePda,
           intent: timeoutIntentPda,
           winningBid: timeoutChallengerBidPda,
           solverRegistry: challengerRegistryPda,

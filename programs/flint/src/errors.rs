@@ -76,4 +76,7 @@ pub enum FlintError {
 
     #[msg("인텐트 제출자는 자기 인텐트에 입찰할 수 없습니다")]
     SelfBidNotAllowed,
+
+    #[msg("프로토콜이 일시 중지되어 이 작업을 수행할 수 없습니다")]
+    ProtocolPaused,
 }

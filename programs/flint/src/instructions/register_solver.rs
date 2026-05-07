@@ -5,10 +5,11 @@ use anchor_lang::{
 
 use crate::{
     errors::FlintError,
-    state::{SolverRegistryAccount, MIN_STAKE_LAMPORTS},
+    state::{require_not_paused, SolverRegistryAccount, MIN_STAKE_LAMPORTS},
 };
 
 pub fn handler(ctx: Context<RegisterSolver>, stake_amount: u64) -> Result<()> {
+    require_not_paused(&ctx.accounts.pause_state)?;
     require!(
         stake_amount >= MIN_STAKE_LAMPORTS,
         FlintError::InsufficientStake
@@ -55,6 +56,10 @@ pub fn handler(ctx: Context<RegisterSolver>, stake_amount: u64) -> Result<()> {
 pub struct RegisterSolver<'info> {
     #[account(mut)]
     pub solver: Signer<'info>,
+
+    /// CHECK: pause PDA can be empty/system-owned until the first explicit pause toggle.
+    #[account(seeds = [b"pause"], bump)]
+    pub pause_state: UncheckedAccount<'info>,
 
     #[account(
         init,

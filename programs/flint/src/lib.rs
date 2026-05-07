@@ -30,6 +30,10 @@ pub mod flint {
         instructions::update_slash_authority::handler(ctx, new_slash_authority)
     }
 
+    pub fn set_pause(ctx: Context<SetPause>, paused: bool) -> Result<()> {
+        instructions::set_pause::handler(ctx, paused)
+    }
+
     /// 유저가 인텐트를 제출하고 토큰을 에스크로에 잠금
     /// nonce: unix timestamp 등 클라이언트 제공 유니크 값
     pub fn submit_intent(

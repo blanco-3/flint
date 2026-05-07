@@ -1,8 +1,9 @@
 use crate::errors::FlintError;
-use crate::state::{BidAccount, IntentAccount, IntentStatus, SolverRegistryAccount};
+use crate::state::{require_not_paused, BidAccount, IntentAccount, IntentStatus, SolverRegistryAccount};
 use anchor_lang::prelude::*;
 
 pub fn handler(ctx: Context<SubmitBid>, output_amount: u64) -> Result<()> {
+    require_not_paused(&ctx.accounts.pause_state)?;
     let clock = Clock::get()?;
     let current_slot = clock.slot;
     let previous_winning_bid_key = ctx.accounts.intent.winning_bid;
@@ -144,6 +145,10 @@ pub fn handler(ctx: Context<SubmitBid>, output_amount: u64) -> Result<()> {
 pub struct SubmitBid<'info> {
     #[account(mut)]
     pub solver: Signer<'info>,
+
+    /// CHECK: pause PDA can be empty/system-owned until the first explicit pause toggle.
+    #[account(seeds = [b"pause"], bump)]
+    pub pause_state: UncheckedAccount<'info>,
 
     #[account(
         mut,

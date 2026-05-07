@@ -1,9 +1,10 @@
 use crate::errors::FlintError;
-use crate::state::{BidAccount, IntentAccount, IntentStatus, SolverRegistryAccount};
+use crate::state::{require_not_paused, BidAccount, IntentAccount, IntentStatus, SolverRegistryAccount};
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, CloseAccount, Token, TokenAccount, Transfer};
 
 pub fn handler(ctx: Context<SettleAuction>) -> Result<()> {
+    require_not_paused(&ctx.accounts.pause_state)?;
     let clock = Clock::get()?;
     let current_slot = clock.slot;
 
@@ -109,12 +110,16 @@ pub struct SettleAuction<'info> {
     #[account(mut)]
     pub solver: Signer<'info>,
 
+    /// CHECK: pause PDA can be empty/system-owned until the first explicit pause toggle.
+    #[account(seeds = [b"pause"], bump)]
+    pub pause_state: UncheckedAccount<'info>,
+
     #[account(
         mut,
         close = user,
         constraint = intent.status == IntentStatus::Open @ FlintError::IntentNotOpen,
     )]
-    pub intent: Account<'info, IntentAccount>,
+    pub intent: Box<Account<'info, IntentAccount>>,
 
     #[account(
         mut,
@@ -123,7 +128,7 @@ pub struct SettleAuction<'info> {
         constraint = !winning_bid.is_settled @ FlintError::AlreadySettled,
         constraint = winning_bid.solver == solver.key() @ FlintError::NotWinningBid,
     )]
-    pub winning_bid: Account<'info, BidAccount>,
+    pub winning_bid: Box<Account<'info, BidAccount>>,
 
     #[account(
         mut,
@@ -131,7 +136,7 @@ pub struct SettleAuction<'info> {
         bump = solver_registry.bump,
         constraint = solver_registry.solver == solver.key() @ FlintError::NotWinningBid,
     )]
-    pub solver_registry: Account<'info, SolverRegistryAccount>,
+    pub solver_registry: Box<Account<'info, SolverRegistryAccount>>,
 
     /// 에스크로 (intent PDA authority)
     #[account(
@@ -139,7 +144,7 @@ pub struct SettleAuction<'info> {
         associated_token::mint = intent.input_mint,
         associated_token::authority = intent,
     )]
-    pub escrow_token_account: Account<'info, TokenAccount>,
+    pub escrow_token_account: Box<Account<'info, TokenAccount>>,
 
     /// 솔버의 input 토큰 수신 계정
     #[account(
@@ -147,7 +152,7 @@ pub struct SettleAuction<'info> {
         associated_token::mint = intent.input_mint,
         associated_token::authority = solver,
     )]
-    pub solver_input_token_account: Account<'info, TokenAccount>,
+    pub solver_input_token_account: Box<Account<'info, TokenAccount>>,
 
     /// 솔버의 output 토큰 송신 계정
     #[account(
@@ -155,7 +160,7 @@ pub struct SettleAuction<'info> {
         associated_token::mint = intent.output_mint,
         associated_token::authority = solver,
     )]
-    pub solver_output_token_account: Account<'info, TokenAccount>,
+    pub solver_output_token_account: Box<Account<'info, TokenAccount>>,
 
     /// 유저의 output 토큰 수신 계정
     #[account(
@@ -163,7 +168,7 @@ pub struct SettleAuction<'info> {
         associated_token::mint = intent.output_mint,
         associated_token::authority = intent.user,
     )]
-    pub user_output_token_account: Account<'info, TokenAccount>,
+    pub user_output_token_account: Box<Account<'info, TokenAccount>>,
 
     #[account(mut, address = intent.user)]
     pub user: SystemAccount<'info>,
