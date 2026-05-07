@@ -119,6 +119,7 @@ const STORAGE_VERSION = "live-product-v2";
 const QUOTE_REFRESH_MS = 30000;
 const WATCH_REFRESH_MS = 45000;
 const PROTECT_REFRESH_MS = 60000;
+const QUOTE_BACKOFF_MS = 15000;
 
 const DEFAULT_FORM: QuoteFormState = {
   inputMint: TOKEN_OPTIONS[0].mint,
@@ -201,6 +202,7 @@ export default function App() {
     Record<string, "rising" | "cooling">
   >({});
   const [quoteExpiresAt, setQuoteExpiresAt] = useState<number | null>(null);
+  const [quoteBackoffUntil, setQuoteBackoffUntil] = useState<number | null>(null);
   const [clockNow, setClockNow] = useState(() => Date.now());
   const [isBackgroundRefreshingQuote, setIsBackgroundRefreshingQuote] = useState(false);
   const [tokenSelectorSide, setTokenSelectorSide] = useState<"input" | "output" | null>(null);
@@ -509,7 +511,13 @@ export default function App() {
   const refreshQuoteSurface = useEffectEvent(() => {
     setIsBackgroundRefreshingQuote(true);
     void evaluateLiveRoutes({ background: true })
-      .catch(() => {
+      .catch((error) => {
+        if (error instanceof Error && error.message === "rate_limited") {
+          const cooldownUntil = Date.now() + QUOTE_BACKOFF_MS;
+          setQuoteBackoffUntil(cooldownUntil);
+          setQuoteExpiresAt(cooldownUntil);
+          return;
+        }
         setQuoteExpiresAt(Date.now() + QUOTE_REFRESH_MS);
       })
       .finally(() => {
@@ -591,6 +599,7 @@ export default function App() {
       !comparison ||
       !quoteExpiresAt ||
       clockNow < quoteExpiresAt ||
+      (quoteBackoffUntil !== null && clockNow < quoteBackoffUntil) ||
       isEvaluating ||
       isBackgroundRefreshingQuote
     ) {
@@ -604,6 +613,7 @@ export default function App() {
     dataMode,
     isBackgroundRefreshingQuote,
     isEvaluating,
+    quoteBackoffUntil,
     quoteExpiresAt,
   ]);
 
@@ -763,6 +773,7 @@ export default function App() {
 
     startTransition(() => {
       setComparison(comparisonState);
+      setQuoteBackoffUntil(null);
       setQuoteExpiresAt(Date.now() + QUOTE_REFRESH_MS);
     });
 
@@ -796,14 +807,24 @@ export default function App() {
     if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
       return;
     }
+    if (quoteBackoffUntil !== null && Date.now() < quoteBackoffUntil) {
+      return;
+    }
 
     const timer = window.setTimeout(() => {
       setIsEvaluating(true);
       setComparisonError(null);
       void evaluateLiveRoutes()
         .catch((error) => {
-          setComparisonError(describeNetworkError(error, "quote"));
-          setQuoteExpiresAt(null);
+          const message = describeNetworkError(error, "quote");
+          if (message.includes("Too many live quote requests")) {
+            const cooldownUntil = Date.now() + QUOTE_BACKOFF_MS;
+            setQuoteBackoffUntil(cooldownUntil);
+            setQuoteExpiresAt(cooldownUntil);
+          } else {
+            setQuoteExpiresAt(null);
+          }
+          setComparisonError(message);
         })
         .finally(() => {
           setIsEvaluating(false);
@@ -819,6 +840,7 @@ export default function App() {
     form.inputMint,
     form.outputMint,
     form.slippageBps,
+    quoteBackoffUntil,
     tokenSelectorSide,
   ]);
 
@@ -829,6 +851,9 @@ export default function App() {
     setIsEvaluating(true);
 
     try {
+      if (quoteBackoffUntil !== null && Date.now() < quoteBackoffUntil) {
+        throw new Error("rate_limited");
+      }
       if (dataMode === "demo") {
         const comparisonState = buildDemoComparison(demoScenario, policy, safeMode);
         setComparison(comparisonState);
@@ -843,8 +868,14 @@ export default function App() {
         return;
       }
       await evaluateLiveRoutes();
+      setQuoteBackoffUntil(null);
     } catch (error) {
       const message = describeNetworkError(error, "quote");
+      if (message.includes("Too many live quote requests")) {
+        const cooldownUntil = Date.now() + QUOTE_BACKOFF_MS;
+        setQuoteBackoffUntil(cooldownUntil);
+        setQuoteExpiresAt(cooldownUntil);
+      }
       setComparisonError(message);
       appendLog(setActivityLog, {
         title: copy.activity.routeEvaluationFailed,
@@ -3447,6 +3478,18 @@ function describeAssessment(
 
 function describeNetworkError(error: unknown, surface: "quote" | "feed" | "market" | "orders") {
   if (error instanceof Error) {
+    if (error.message === "rate_limited") {
+      switch (surface) {
+        case "quote":
+          return "Too many live quote requests hit the provider at once. Flint is backing off briefly before trying again.";
+        case "feed":
+          return "The shared feed provider is rate limited right now. Flint will retry shortly.";
+        case "market":
+          return "The live market provider is rate limited right now. Flint will retry shortly.";
+        case "orders":
+          return "The live order provider is rate limited right now. Flint will retry shortly.";
+      }
+    }
     if (error.message === "network_unavailable" || error.message === "Failed to fetch") {
       switch (surface) {
         case "quote":

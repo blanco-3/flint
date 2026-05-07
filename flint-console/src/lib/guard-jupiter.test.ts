@@ -1,12 +1,17 @@
 import { strict as assert } from "assert";
 
-import { buildCancelTransactions, fetchTriggerOrders } from "./guard-jupiter";
+import {
+  buildCancelTransactions,
+  fetchTriggerOrders,
+  resetJupiterAdapterStateForTests,
+} from "./guard-jupiter";
 
 describe("guard Jupiter adapters", () => {
   const originalFetch = globalThis.fetch;
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
+    resetJupiterAdapterStateForTests();
   });
 
   it("aggregates trigger orders across pages", async () => {

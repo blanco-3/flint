@@ -4,6 +4,19 @@ const SWAP_API_ROOT = "https://lite-api.jup.ag/swap/v1";
 const TRIGGER_API_ROOT = "https://lite-api.jup.ag/trigger/v1";
 const PRICE_API_ROOT = "https://api.jup.ag/price/v3";
 const REQUEST_TIMEOUT_MS = 12000;
+const QUOTE_CACHE_MS = 15000;
+const PRICE_CACHE_MS = 15000;
+const RATE_LIMIT_COOLDOWN_MS = 12000;
+
+const responseCache = new Map<string, { expiresAt: number; value: unknown }>();
+const inFlightRequests = new Map<string, Promise<unknown>>();
+const rateLimitBuckets = new Map<string, number>();
+
+export function resetJupiterAdapterStateForTests() {
+  responseCache.clear();
+  inFlightRequests.clear();
+  rateLimitBuckets.clear();
+}
 
 export async function fetchQuote(input: {
   inputMint: string;
@@ -27,7 +40,11 @@ export async function fetchQuote(input: {
     url.searchParams.set("onlyDirectRoutes", "true");
   }
 
-  const payload = await requestJson<JupiterQuote & { error?: string }>(url.toString());
+  const payload = await requestJson<JupiterQuote & { error?: string }>(url.toString(), undefined, {
+    cacheKey: `quote:${url.toString()}`,
+    cacheTtlMs: QUOTE_CACHE_MS,
+    rateLimitBucket: "quote",
+  });
   if (payload.error) {
     throw new Error(payload.error || "quote_fetch_failed");
   }
@@ -46,6 +63,9 @@ export async function buildSwapTransaction(userPublicKey: string, quoteResponse:
         userPublicKey,
         quoteResponse,
       }),
+    },
+    {
+      rateLimitBucket: "swap",
     }
   );
   if (payload.error || !payload.swapTransaction) {
@@ -72,7 +92,11 @@ export async function fetchTriggerOrders(user: string) {
       orders?: TriggerOrder[];
       page?: number;
       totalPages?: number;
-    }>(url.toString());
+    }>(url.toString(), undefined, {
+      cacheKey: `trigger:${url.toString()}`,
+      cacheTtlMs: 5000,
+      rateLimitBucket: "trigger",
+    });
     if (payload.error) {
       throw new Error(payload.error || "trigger_order_fetch_failed");
     }
@@ -116,6 +140,8 @@ export async function buildCancelTransactions(maker: string, orders: string[]) {
       "content-type": "application/json",
     },
     body: JSON.stringify(body),
+  }, {
+    rateLimitBucket: "trigger",
   });
   if (payload.error) {
     throw new Error(payload.error || "panic_cancel_build_failed");
@@ -132,10 +158,67 @@ export async function fetchPrices(mints: string[]) {
   if (!ids.length) return {} as Record<string, JupiterPriceEntry>;
   const url = new URL(PRICE_API_ROOT);
   url.searchParams.set("ids", ids.join(","));
-  return requestJson<Record<string, JupiterPriceEntry>>(url.toString());
+  return requestJson<Record<string, JupiterPriceEntry>>(url.toString(), undefined, {
+    cacheKey: `price:${url.toString()}`,
+    cacheTtlMs: PRICE_CACHE_MS,
+    rateLimitBucket: "price",
+  });
 }
 
-async function requestJson<T>(url: string, init?: RequestInit) {
+async function requestJson<T>(
+  url: string,
+  init?: RequestInit,
+  options?: {
+    cacheKey?: string;
+    cacheTtlMs?: number;
+    rateLimitBucket?: string;
+  }
+) {
+  const cacheKey = options?.cacheKey ?? null;
+  if (cacheKey) {
+    const cached = responseCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.value as T;
+    }
+    const inFlight = inFlightRequests.get(cacheKey);
+    if (inFlight) {
+      return (await inFlight) as T;
+    }
+  }
+
+  if (options?.rateLimitBucket) {
+    const cooldownUntil = rateLimitBuckets.get(options.rateLimitBucket) ?? 0;
+    if (cooldownUntil > Date.now()) {
+      throw new Error("rate_limited");
+    }
+  }
+
+  const requestPromise = requestJsonUncached<T>(url, init, options);
+  if (cacheKey) {
+    inFlightRequests.set(cacheKey, requestPromise as Promise<unknown>);
+  }
+
+  try {
+    const value = await requestPromise;
+    if (cacheKey && options?.cacheTtlMs) {
+      responseCache.set(cacheKey, {
+        value,
+        expiresAt: Date.now() + options.cacheTtlMs,
+      });
+    }
+    return value;
+  } finally {
+    if (cacheKey) {
+      inFlightRequests.delete(cacheKey);
+    }
+  }
+}
+
+async function requestJsonUncached<T>(
+  url: string,
+  init?: RequestInit,
+  options?: { rateLimitBucket?: string }
+) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
@@ -146,11 +229,14 @@ async function requestJson<T>(url: string, init?: RequestInit) {
     const raw = await response.text();
     const payload = safeParseJson<T & { error?: string }>(raw);
     if (!response.ok) {
-      throw new Error(
+      const message =
         payload?.error ||
-          describeHttpFailure(response.status, raw) ||
-          `request failed: ${response.status}`
-      );
+        describeHttpFailure(response.status, raw) ||
+        `request failed: ${response.status}`;
+      if (message === "rate_limited" && options?.rateLimitBucket) {
+        rateLimitBuckets.set(options.rateLimitBucket, Date.now() + RATE_LIMIT_COOLDOWN_MS);
+      }
+      throw new Error(message);
     }
     if (!payload) {
       throw new Error("invalid_json_response");
