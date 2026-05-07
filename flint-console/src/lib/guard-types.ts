@@ -245,6 +245,28 @@ export type SafetyFeedSnapshot = {
   items: SafetyFeedItem[];
 };
 
+export type WatchSourceStatus = {
+  dexscreener: "live" | "degraded";
+  jupiterPrice: "live" | "degraded";
+  jupiterQuote: "live" | "degraded";
+};
+
+export type WatchServerSnapshot = {
+  snapshotVersion: string;
+  updatedAt: string;
+  staleAfterMs: number;
+  sourceStatus: WatchSourceStatus;
+  degradedReasons: string[];
+  itemCount: number;
+  criticalCount: number;
+  blockedCount: number;
+  changedCount: number;
+  marketBoard: MarketRiskItem[];
+  marketTokens: MarketTokenHealth[];
+  marketThemes: MarketRiskTheme[];
+  marketVenues: MarketVenueHealth[];
+};
+
 export type WatchSnapshot = {
   activeIncidentCount: number;
   criticalIncidentCount: number;

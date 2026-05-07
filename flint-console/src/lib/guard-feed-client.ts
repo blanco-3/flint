@@ -1,4 +1,4 @@
-import type { SafetyFeedItem, SafetyFeedSnapshot } from "./guard-types";
+import type { SafetyFeedItem, SafetyFeedSnapshot, WatchServerSnapshot } from "./guard-types";
 
 const DEFAULT_RELAY_BASE = "http://127.0.0.1:8787";
 const REQUEST_TIMEOUT_MS = 5000;
@@ -20,6 +20,13 @@ export async function fetchSafetyIncident(incidentId: string, baseUrl = DEFAULT_
   return request(`${baseUrl}/safety-feed/${encodeURIComponent(incidentId)}`, {
     method: "GET",
   }) as Promise<SafetyFeedItem>;
+}
+
+export async function fetchWatchSnapshot(baseUrl = DEFAULT_RELAY_BASE, refresh = false) {
+  const suffix = refresh ? "?refresh=1" : "";
+  return request(`${baseUrl}/watch/snapshot${suffix}`, {
+    method: "GET",
+  }) as Promise<WatchServerSnapshot>;
 }
 
 async function request(url: string, init: RequestInit) {

@@ -766,6 +766,60 @@ body {
   color: var(--text-0);
 }
 
+.live-sync-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 168px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-1);
+}
+
+.live-sync-pill > div {
+  display: grid;
+  gap: 2px;
+}
+
+.live-sync-pill strong {
+  font-size: 12px;
+  color: var(--text-0);
+}
+
+.live-sync-pill span:last-child {
+  font-size: 11px;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.live-sync-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: rgba(112, 196, 133, 0.95);
+  box-shadow: 0 0 0 0 rgba(112, 196, 133, 0.35);
+  flex: none;
+}
+
+@keyframes syncPulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(112, 196, 133, 0.35);
+    background: rgba(112, 196, 133, 0.95);
+  }
+  50% {
+    transform: scale(1.08);
+    box-shadow: 0 0 0 8px rgba(112, 196, 133, 0);
+    background: rgba(240, 160, 72, 0.95);
+  }
+}
+
+.live-sync-pill.syncing .live-sync-dot {
+  animation: syncPulse 1.2s ease-in-out infinite;
+}
+
 .watch-reason-strip {
   margin-bottom: 12px;
 }
@@ -858,6 +912,38 @@ body {
 
 .heatmap-tile:hover {
   transform: translateY(-2px);
+}
+
+@keyframes tileRise {
+  0% {
+    transform: translateY(6px) scale(0.985);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.12);
+    filter: saturate(0.92);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    box-shadow: 0 18px 36px rgba(0, 0, 0, 0.22);
+    filter: saturate(1.06);
+  }
+}
+
+@keyframes tileCool {
+  0% {
+    transform: translateY(-3px) scale(1.01);
+    filter: brightness(1.04);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    filter: brightness(1);
+  }
+}
+
+.heatmap-tile.rising {
+  animation: tileRise 0.9s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.heatmap-tile.cooling {
+  animation: tileCool 1.1s ease;
 }
 
 .heatmap-eyebrow {

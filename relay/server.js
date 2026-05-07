@@ -4,7 +4,12 @@ const { randomUUID } = require("crypto");
 
 const PROGRAM_ID = "5ZBavnDgcW1wnhKEiGp8KbQSHq4PcdVVosUcEX1m4bFt";
 
-function createRelayServer({ store, notifier = async () => {}, now = () => new Date() }) {
+function createRelayServer({
+  store,
+  notifier = async () => {},
+  now = () => new Date(),
+  watchService = null,
+}) {
   async function handleRequest(req, res) {
     try {
       const url = new URL(req.url, "http://localhost");
@@ -29,6 +34,25 @@ function createRelayServer({ store, notifier = async () => {}, now = () => new D
         const requests = await store.listRequests();
         const summary = deriveAnalyticsSummary(requests);
         return sendJson(res, 200, summary);
+      }
+
+      if (req.method === "GET" && url.pathname === "/watch/snapshot") {
+        if (!watchService) {
+          return sendJson(res, 503, { error: "watch_snapshot_unavailable" });
+        }
+        const force = url.searchParams.get("refresh") === "1";
+        const snapshot = await watchService.getSnapshot({ force });
+        return sendJson(res, 200, snapshot);
+      }
+
+      if (req.method === "GET" && url.pathname === "/watch/history") {
+        if (!watchService) {
+          return sendJson(res, 503, { error: "watch_history_unavailable" });
+        }
+        const limit = Math.max(1, Math.min(Number(url.searchParams.get("limit") || "10"), 20));
+        return sendJson(res, 200, {
+          snapshots: watchService.listHistory(limit),
+        });
       }
 
       if (req.method === "GET" && url.pathname === "/safety-feed") {

@@ -40,6 +40,73 @@ function createMemoryStore() {
   };
 }
 
+function createWatchServiceStub() {
+  const snapshots = [
+    {
+      snapshotVersion: "2026-05-07T12:00:00.000Z",
+      updatedAt: "2026-05-07T12:00:00.000Z",
+      staleAfterMs: 45000,
+      sourceStatus: {
+        dexscreener: "live",
+        jupiterPrice: "live",
+        jupiterQuote: "degraded",
+      },
+      degradedReasons: ["quote_source_partially_unavailable"],
+      itemCount: 1,
+      criticalCount: 1,
+      blockedCount: 1,
+      changedCount: 1,
+      marketBoard: [
+        {
+          pairKey: "SOL/USDC",
+          inputSymbol: "SOL",
+          outputSymbol: "USDC",
+          inputMint: "So11111111111111111111111111111111111111112",
+          outputMint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          venue: "Jupiter",
+          venues: ["Jupiter"],
+          status: "blocked",
+          score: 82,
+          riskLevel: "critical",
+          badge: "blocked",
+          importanceScore: 90,
+          importanceBucket: "large",
+          riskSummary: "Blocked test route",
+          nextAction: "Hold execution.",
+          dataConfidence: "full-route",
+          factors: [{ id: "execution", title: "Execution fragility", score: 35, detail: "Test detail" }],
+          reasonTitles: ["Execution fragility"],
+          liquidityUsd: 150000,
+          priceImpactPct: 2.1,
+          updatedAt: "2026-05-07T12:00:00.000Z",
+          poolUrl: null,
+        },
+      ],
+      marketTokens: [
+        {
+          symbol: "SOL",
+          status: "blocked",
+          averageScore: 82,
+          pairCount: 1,
+          venueCount: 1,
+          topReasons: ["Execution fragility"],
+        },
+      ],
+      marketThemes: [{ title: "Execution fragility", count: 1, status: "blocked" }],
+      marketVenues: [{ venue: "Jupiter", count: 1, blockedCount: 1, warnCount: 0, status: "blocked" }],
+    },
+  ];
+
+  return {
+    async getSnapshot() {
+      return structuredClone(snapshots[0]);
+    },
+    listHistory(limit = 10) {
+      return structuredClone(snapshots.slice(0, limit));
+    },
+  };
+}
+
 test("relay lifecycle creates, quotes, selects, and reports status", async () => {
   const store = createMemoryStore();
   const server = createRelayServer({
@@ -260,6 +327,35 @@ test("relay safety feed upserts by incident id", async () => {
   const feedResponse = await fetch(`${base}/safety-feed`);
   const feed = await feedResponse.json();
   assert.equal(feed.itemCount, 1);
+
+  server.close();
+});
+
+test("relay exposes canonical watch snapshot and history", async () => {
+  const store = createMemoryStore();
+  const server = createRelayServer({
+    store,
+    notifier: async () => {},
+    watchService: createWatchServiceStub(),
+  });
+
+  server.listen(0);
+  await once(server, "listening");
+  const { port } = server.address();
+  const base = `http://127.0.0.1:${port}`;
+
+  const snapshotResponse = await fetch(`${base}/watch/snapshot`);
+  assert.equal(snapshotResponse.status, 200);
+  const snapshot = await snapshotResponse.json();
+  assert.equal(snapshot.snapshotVersion, "2026-05-07T12:00:00.000Z");
+  assert.equal(snapshot.marketBoard[0].pairKey, "SOL/USDC");
+  assert.equal(snapshot.criticalCount, 1);
+
+  const historyResponse = await fetch(`${base}/watch/history?limit=1`);
+  assert.equal(historyResponse.status, 200);
+  const history = await historyResponse.json();
+  assert.equal(history.snapshots.length, 1);
+  assert.equal(history.snapshots[0].snapshotVersion, "2026-05-07T12:00:00.000Z");
 
   server.close();
 });

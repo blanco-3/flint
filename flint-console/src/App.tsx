@@ -3,7 +3,6 @@ import type { ChangeEvent, FormEvent } from "react";
 
 import {
   buildCancelTransactions,
-  fetchPrices,
   buildSwapTransaction,
   fetchQuote,
   fetchTriggerOrders,
@@ -35,6 +34,7 @@ import {
 import { buildDeterministicAuditBundle } from "./lib/guard-audit";
 import {
   fetchSafetyFeed,
+  fetchWatchSnapshot,
   publishSafetyFeedItem,
 } from "./lib/guard-feed-client";
 import {
@@ -44,14 +44,9 @@ import {
 import { buildSafetyFeedItem, buildSafetyFeedSnapshot } from "./lib/guard-feed";
 import { buildIncidentPack, mergePolicyWithIncident } from "./lib/guard-incident";
 import {
-  sortMarketRiskItems,
-  summarizeRiskThemes,
-  summarizeRiskVenues,
-  summarizeTokenHealth,
 } from "./lib/guard-market-board";
-import { fetchLiveMarketPairs, fetchPoolSnapshots } from "./lib/guard-market-data";
+import { fetchPoolSnapshots } from "./lib/guard-market-data";
 import { buildDecisionReport, buildPanicActionPlan } from "./lib/guard-report";
-import { buildPairOnlyWatchRiskItem, buildWatchRiskItem } from "./lib/guard-watch-risk";
 import { buildWatchSnapshot } from "./lib/guard-watch";
 import {
   evaluateQuoteRisk,
@@ -82,7 +77,6 @@ import {
   type MarketVenueHealth,
   type OrderAssessment,
   type PanicActionPlan,
-  type PoolSnapshot,
   type QuoteComparison,
   type QuoteFormState,
   type RiskSignalInputs,
@@ -91,6 +85,7 @@ import {
   type SafetyFeedItem,
   type SafetyFeedSnapshot,
   type TriggerOrder,
+  type WatchServerSnapshot,
 } from "./lib/guard-types";
 import type { Dispatch, SetStateAction } from "react";
 import { TOKEN_OPTIONS, tokenByMint, tokenChoices, type TokenOption } from "./lib/token-options";
@@ -188,16 +183,17 @@ export default function App() {
   const [marketBoardError, setMarketBoardError] = useState<string | null>(null);
   const [isLoadingMarketBoard, setIsLoadingMarketBoard] = useState(false);
   const [marketRefreshedAt, setMarketRefreshedAt] = useState<string | null>(null);
+  const [watchServerSnapshot, setWatchServerSnapshot] = useState<WatchServerSnapshot | null>(null);
+  const [isWatchSyncing, setIsWatchSyncing] = useState(false);
+  const [marketMotionByPair, setMarketMotionByPair] = useState<
+    Record<string, "rising" | "cooling">
+  >({});
   const [quoteExpiresAt, setQuoteExpiresAt] = useState<number | null>(null);
-  const [watchExpiresAt, setWatchExpiresAt] = useState<number | null>(null);
   const [clockNow, setClockNow] = useState(() => Date.now());
   const [isBackgroundRefreshingQuote, setIsBackgroundRefreshingQuote] = useState(false);
   const [tokenSelectorSide, setTokenSelectorSide] = useState<"input" | "output" | null>(null);
   const [tokenSearch, setTokenSearch] = useState("");
   const [showLabControls, setShowLabControls] = useState(false);
-  const [showActivityEvidence, setShowActivityEvidence] = useState(false);
-  const [showWatchSecondary, setShowWatchSecondary] = useState(false);
-  const [showSettingsDetails, setShowSettingsDetails] = useState(false);
   const copy = useMemo(() => localeCopy(locale), [locale]);
 
   const basePolicy = useMemo(() => policyCopy(POLICY_PRESETS[policyPreset]), [policyPreset]);
@@ -246,11 +242,6 @@ export default function App() {
     if (!quoteExpiresAt) return null;
     return roundCountdownSeconds(quoteExpiresAt - clockNow);
   }, [quoteExpiresAt, clockNow]);
-
-  const watchCountdownSeconds = useMemo(() => {
-    if (!watchExpiresAt) return null;
-    return roundCountdownSeconds(watchExpiresAt - clockNow);
-  }, [watchExpiresAt, clockNow]);
 
   const heroMarketItem = marketBoard[0] ?? null;
   const secondaryHeatmapItems = marketBoard.slice(1, 8);
@@ -400,8 +391,13 @@ export default function App() {
   );
 
   const refreshWatchSurface = useEffectEvent(() => {
-    void handleRefreshMarketBoard(true);
-    void handleRefreshSafetyFeed(true);
+    setIsWatchSyncing(true);
+    void Promise.allSettled([
+      handleRefreshMarketBoard(true),
+      handleRefreshSafetyFeed(true),
+    ]).finally(() => {
+      setIsWatchSyncing(false);
+    });
   });
 
   const refreshProtectSurface = useEffectEvent(() => {
@@ -422,7 +418,7 @@ export default function App() {
   useEffect(() => {
     if (activePanel !== "watch" || dataMode !== "live") return;
     if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
-    if (!marketRefreshedAt || !feedSnapshot) {
+    if (!watchServerSnapshot || !feedSnapshot) {
       refreshWatchSurface();
     }
 
@@ -431,7 +427,7 @@ export default function App() {
     }, WATCH_REFRESH_MS);
 
     return () => window.clearInterval(timer);
-  }, [activePanel, dataMode, marketRefreshedAt, feedSnapshot]);
+  }, [activePanel, dataMode, watchServerSnapshot, feedSnapshot]);
 
   useEffect(() => {
     if (!feedSnapshot?.items.length) return;
@@ -451,12 +447,20 @@ export default function App() {
   }, [marketBoard, selectedMarketItem]);
 
   useEffect(() => {
-    if (!quoteExpiresAt && !watchExpiresAt) return;
+    if (!Object.keys(marketMotionByPair).length) return;
+    const timer = window.setTimeout(() => {
+      setMarketMotionByPair({});
+    }, 1600);
+    return () => window.clearTimeout(timer);
+  }, [marketMotionByPair]);
+
+  useEffect(() => {
+    if (!quoteExpiresAt) return;
     const timer = window.setInterval(() => {
       setClockNow(Date.now());
     }, COUNTDOWN_TICK_MS);
     return () => window.clearInterval(timer);
-  }, [quoteExpiresAt, watchExpiresAt]);
+  }, [quoteExpiresAt]);
 
   useEffect(() => {
     if (
@@ -895,7 +899,6 @@ export default function App() {
       startTransition(() => {
         setFeedError(null);
         setFeedSnapshot(snapshot);
-        setWatchExpiresAt(Date.now() + WATCH_REFRESH_MS);
       });
       if (!background) {
         appendLog(setActivityLog, {
@@ -905,18 +908,17 @@ export default function App() {
           kind: "activity",
         });
       }
-    } catch {
-      const fallback = buildSafetyFeedSnapshot([currentFeedItem]);
+    } catch (error) {
+      const message = describeNetworkError(error, "feed");
       startTransition(() => {
-        if (!feedSnapshot?.items.length) {
-          setFeedSnapshot(fallback);
-        }
-        setWatchExpiresAt(Date.now() + WATCH_REFRESH_MS);
       });
+      if (!background) {
+        setFeedError(message);
+      }
       if (!background) {
         appendLog(setActivityLog, {
           title: copy.activity.feedRefreshDegraded,
-          detail: "Relay was unavailable. Flint kept the local incident snapshot active.",
+          detail: message,
           severity: "warning",
           kind: "incident",
         });
@@ -932,100 +934,34 @@ export default function App() {
       setMarketBoardError(null);
     }
     try {
-      const livePairs = await fetchLiveMarketPairs(
-        TOKEN_OPTIONS.map((token) => token.mint),
-        12
-      );
-      if (!livePairs.length) {
-        throw new Error("market_board_refresh_failed");
-      }
-
-      const prices = await fetchPrices(
-        dedupeStrings(
-          livePairs.flatMap((pair) => [pair.baseToken.address, pair.quoteToken.address])
-        )
-      );
-
-      const results = await Promise.allSettled(
-        livePairs.map(async (pair) => {
-          const direction = chooseQuoteDirection(pair);
-          if (!direction) {
-            throw new Error("market_pair_direction_unavailable");
-          }
-          const inputToken =
-            tokenByMint(direction.inputMint) ??
-            syntheticToken(direction.inputMint, direction.inputSymbol);
-          const outputToken =
-            tokenByMint(direction.outputMint) ??
-            syntheticToken(direction.outputMint, direction.outputSymbol);
-          const usdPrice = prices[direction.inputMint]?.usdPrice ?? null;
-          const amount = sampleQuoteAmount(inputToken, usdPrice);
-          try {
-            const quote = await fetchQuote({
-              inputMint: direction.inputMint,
-              outputMint: direction.outputMint,
-              amount: rawAmountFromForm(amount, inputToken.mint),
-              slippageBps: 75,
-            });
-            const pools = await fetchPoolSnapshots(quote.routePlan.map((hop) => hop.swapInfo.ammKey));
-            const assessment = evaluateQuoteRisk(quote, pools, policy);
-            const routeVenues = dedupeStrings(
-              quote.routePlan.map((hop) => hop.swapInfo.label || "unknown")
-            );
-            const primaryPool =
-              quote.routePlan[0]?.swapInfo.ammKey
-                ? pools[quote.routePlan[0].swapInfo.ammKey]
-                : null;
-            return {
-              ...buildWatchRiskItem({
-                inputToken,
-                outputToken,
-                quote,
-                primaryPool: primaryPool ?? pairToPoolSnapshot(pair),
-                assessment,
-                policy,
-                routeVenues,
-                hasSafeFallback: assessment.status !== "blocked",
-              }),
-              poolUrl: primaryPool?.url ?? pair.url ?? null,
-            } satisfies MarketRiskItem;
-          } catch {
-            return buildPairOnlyWatchRiskItem({
-              inputToken,
-              outputToken,
-              primaryPool: pairToPoolSnapshot(pair),
-              routeVenues: dedupeStrings([pair.dexId ?? "unknown"]),
-              policy,
-            });
-          }
-        })
-      );
-
-      const rows = results.reduce<MarketRiskItem[]>((acc, result) => {
-        if (result.status === "fulfilled") {
-          acc.push(result.value);
+      const snapshot = await fetchWatchSnapshot(undefined, !background);
+      const nextMotion = snapshot.marketBoard.reduce<Record<string, "rising" | "cooling">>((acc, item) => {
+        const previous = marketBoard.find((current) => current.pairKey === item.pairKey);
+        if (!previous) return acc;
+        if (item.score > previous.score || severityWeight(item.riskLevel) > severityWeight(previous.riskLevel)) {
+          acc[item.pairKey] = "rising";
+        } else if (
+          item.score < previous.score ||
+          severityWeight(item.riskLevel) < severityWeight(previous.riskLevel)
+        ) {
+          acc[item.pairKey] = "cooling";
         }
         return acc;
-      }, []);
-
-      if (!rows.length) {
-        throw new Error("market_board_refresh_failed");
-      }
-
-      const sorted = sortMarketRiskItems(rows);
+      }, {});
       startTransition(() => {
         setMarketBoardError(null);
-        setMarketBoard(sorted);
-        setMarketTokens(summarizeTokenHealth(sorted));
-        setMarketThemes(summarizeRiskThemes(sorted));
-        setMarketVenues(summarizeRiskVenues(sorted));
-        setMarketRefreshedAt(new Date().toISOString());
-        setWatchExpiresAt(Date.now() + WATCH_REFRESH_MS);
+        setWatchServerSnapshot(snapshot);
+        setMarketBoard(snapshot.marketBoard);
+        setMarketTokens(snapshot.marketTokens);
+        setMarketThemes(snapshot.marketThemes);
+        setMarketVenues(snapshot.marketVenues);
+        setMarketRefreshedAt(snapshot.updatedAt);
+        setMarketMotionByPair(nextMotion);
       });
       if (!background) {
         appendLog(setActivityLog, {
           title: copy.activity.marketBoardRefreshed,
-          detail: `${sorted.length} monitored route(s) rescored.`,
+          detail: `${snapshot.itemCount} canonical market route(s) synced from relay.`,
           severity: "info",
           kind: "activity",
         });
@@ -1034,7 +970,6 @@ export default function App() {
       if (!background && !marketBoard.length) {
         setMarketBoardError(describeNetworkError(error, "market"));
       }
-      setWatchExpiresAt(Date.now() + WATCH_REFRESH_MS);
       if (!background) {
         appendLog(setActivityLog, {
           title: copy.activity.marketBoardDegraded,
@@ -1052,14 +987,22 @@ export default function App() {
     setIsPublishingFeed(true);
     setFeedError(null);
     try {
-      await publishSafetyFeedItem(currentFeedItem);
+      const published = await publishSafetyFeedItem(currentFeedItem);
+      startTransition(() => {
+        const nextItems = dedupeByKey(
+          [published as SafetyFeedItem].concat(feedSnapshot?.items ?? []),
+          (item) => item.incidentId
+        );
+        setFeedSnapshot(buildSafetyFeedSnapshot(nextItems));
+        setSelectedFeedItem(published as SafetyFeedItem);
+      });
       appendLog(setActivityLog, {
         title: copy.activity.incidentPublished,
         detail: currentFeedItem.incidentId,
         severity: "info",
         kind: "activity",
       });
-      await handleRefreshSafetyFeed();
+      await handleRefreshSafetyFeed(true);
     } catch (error) {
       const message = error instanceof Error ? error.message : "safety_feed_publish_failed";
       setFeedError(message);
@@ -1780,16 +1723,13 @@ export default function App() {
                   <p>{copy.watch.subtitle}</p>
                 </div>
                 <div className="nav-actions compact-actions">
-                  <QuoteCountdownPill
-                    countdown={watchCountdownSeconds}
-                    isRefreshing={isLoadingFeed || isLoadingMarketBoard}
-                    label={copy.watch.refreshCycle}
-                    refreshingLabel={copy.watch.refreshing}
-                    readyLabel={copy.watch.refreshReady}
+                  <LiveSyncPill
+                    isSyncing={isWatchSyncing || isLoadingFeed || isLoadingMarketBoard}
+                    syncedAt={marketRefreshedAt}
+                    label={copy.watch.refreshReady}
+                    syncingLabel={copy.watch.refreshing}
+                    lastUpdatedLabel={copy.watch.lastUpdated}
                   />
-                  <button className="ghost-button" onClick={() => void handleRefreshMarketBoard()}>
-                    {copy.watch.snapshot}
-                  </button>
                   <button className="ghost-button" onClick={() => void handleRefreshSafetyFeed()}>
                     {copy.watch.refreshFeed}
                   </button>
@@ -1802,6 +1742,11 @@ export default function App() {
                   </button>
                 </div>
               </div>
+
+              <section className="info-card watch-reason-strip">
+                <span className="panel-kicker">{copy.watch.sharedFeedTitle}</span>
+                <p>{copy.watch.sharedFeedBody}</p>
+              </section>
 
               <section className="hero-grid compact watch-snapshot-grid">
                 <MetricCard label={copy.watch.activeIncidents} value={String(watchSnapshot.activeIncidentCount)} />
@@ -1843,6 +1788,8 @@ export default function App() {
                           key={`heatmap:hero:${heroMarketItem.pairKey}`}
                           type="button"
                           className={`heatmap-tile hero ${heroMarketItem.riskLevel} ${
+                            marketMotionByPair[heroMarketItem.pairKey] ?? ""
+                          } ${
                             selectedMarketItem?.pairKey === heroMarketItem.pairKey ? " active" : ""
                           }`}
                           onClick={() => setSelectedMarketItem(heroMarketItem)}
@@ -1869,7 +1816,9 @@ export default function App() {
                         <button
                           key={`heatmap:${item.pairKey}`}
                           type="button"
-                          className={`heatmap-tile ${item.riskLevel} ${item.importanceBucket}${
+                          className={`heatmap-tile ${item.riskLevel} ${item.importanceBucket} ${
+                            marketMotionByPair[item.pairKey] ?? ""
+                          }${
                             selectedMarketItem?.pairKey === item.pairKey ? " active" : ""
                           }`}
                           onClick={() => setSelectedMarketItem(item)}
@@ -2246,14 +2195,8 @@ function Rocky() {
         strokeWidth="1.6"
         strokeLinecap="round"
       />
-      <path
-        d="M10.2 12.3L12.4 8.8L13.1 12.2"
-        fill="#ffd9a8"
-      />
-      <path
-        d="M27.6 10.8L30.4 7.2L30.6 11.4"
-        fill="#ffd9a8"
-      />
+      <path d="M10.2 12.3L12.4 8.8L13.1 12.2" fill="#ffd9a8" />
+      <path d="M27.6 10.8L30.4 7.2L30.6 11.4" fill="#ffd9a8" />
       <ellipse cx="14.2" cy="21" rx="4.1" ry="4.4" fill="#fff8ef" />
       <ellipse cx="25.8" cy="21" rx="4.1" ry="4.4" fill="#fff8ef" />
       <circle cx="14.6" cy="21.5" r="1.9" fill="#20110a" />
@@ -2400,6 +2343,32 @@ function QuoteCountdownPill({
             ? formatCountdown(countdown)
             : readyLabel}
       </strong>
+    </div>
+  );
+}
+
+function LiveSyncPill({
+  isSyncing,
+  syncedAt,
+  label,
+  syncingLabel,
+  lastUpdatedLabel,
+}: {
+  isSyncing: boolean;
+  syncedAt: string | null;
+  label: string;
+  syncingLabel: string;
+  lastUpdatedLabel: string;
+}) {
+  return (
+    <div className={`live-sync-pill${isSyncing ? " syncing" : ""}`} aria-live="polite">
+      <span className="live-sync-dot" />
+      <div>
+        <strong>{isSyncing ? syncingLabel : label}</strong>
+        <span>
+          {syncedAt ? `${lastUpdatedLabel}: ${new Date(syncedAt).toLocaleTimeString()}` : "Standby"}
+        </span>
+      </div>
     </div>
   );
 }
@@ -3308,6 +3277,22 @@ function roundCountdownSeconds(remainingMs: number) {
   return Math.ceil(seconds / 5) * 5;
 }
 
+function severityWeight(value: string) {
+  switch (value) {
+    case "blocked":
+      return 4;
+    case "critical":
+      return 3;
+    case "elevated":
+    case "warn":
+      return 2;
+    case "watch":
+      return 1;
+    default:
+      return 0;
+  }
+}
+
 function formatImpact(value: number) {
   if (!Number.isFinite(value)) return "n/a";
   const absolute = Math.abs(value);
@@ -3346,80 +3331,20 @@ function simulationTimeline(id: DemoScenarioId) {
   }
 }
 
-function chooseQuoteDirection(pair: {
-  baseToken: { address: string; symbol: string };
-  quoteToken: { address: string; symbol: string };
-}) {
-  const baseKnown = tokenByMint(pair.baseToken.address);
-  const quoteKnown = tokenByMint(pair.quoteToken.address);
-  if (baseKnown) {
-    return {
-      inputMint: pair.baseToken.address,
-      inputSymbol: pair.baseToken.symbol,
-      outputMint: pair.quoteToken.address,
-      outputSymbol: pair.quoteToken.symbol,
-    };
-  }
-  if (quoteKnown) {
-    return {
-      inputMint: pair.quoteToken.address,
-      inputSymbol: pair.quoteToken.symbol,
-      outputMint: pair.baseToken.address,
-      outputSymbol: pair.baseToken.symbol,
-    };
-  }
-  return null;
-}
-
-function sampleQuoteAmount(token: TokenOption, usdPrice: number | null) {
-  if (!usdPrice || usdPrice <= 0) {
-    if (token.symbol === "USDC") return "250";
-    if (token.symbol === "SOL" || token.symbol === "mSOL" || token.symbol === "jitoSOL") {
-      return "1";
-    }
-    if (token.symbol === "JUP") return "500";
-    if (token.symbol === "BONK") return "500000";
-    return "100";
-  }
-  const targetUsd = 250;
-  return String(Number((targetUsd / usdPrice).toFixed(token.decimals > 6 ? 4 : 2)));
-}
-
-function syntheticToken(mint: string, symbol: string): TokenOption {
-  return {
-    mint,
-    symbol,
-    name: symbol,
-    decimals: 6,
-  };
-}
-
-function pairToPoolSnapshot(pair: {
-  pairAddress: string;
-  dexId: string | null;
-  liquidityUsd: number | null;
-  pairCreatedAt: number | null;
-  priceChangeH1: number | null;
-  priceChangeM5: number | null;
-  buysM5: number | null;
-  sellsM5: number | null;
-  url: string | null;
-}): PoolSnapshot {
-  return {
-    ammKey: pair.pairAddress,
-    dexId: pair.dexId,
-    liquidityUsd: pair.liquidityUsd,
-    pairCreatedAt: pair.pairCreatedAt,
-    priceChangeH1: pair.priceChangeH1,
-    priceChangeM5: pair.priceChangeM5,
-    buysM5: pair.buysM5,
-    sellsM5: pair.sellsM5,
-    url: pair.url,
-  };
-}
-
 function dedupeStrings(values: string[]) {
   return Array.from(new Set(values.filter(Boolean)));
+}
+
+function dedupeByKey<T>(values: T[], getKey: (value: T) => string) {
+  const seen = new Set<string>();
+  const next: T[] = [];
+  for (const value of values) {
+    const key = getKey(value);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    next.push(value);
+  }
+  return next;
 }
 
 function normalizeWatchPair(value: string) {

@@ -135,12 +135,11 @@ export const COPY = {
       title: "See incident risk without executing a swap",
       subtitle:
         "Start from live market stress, inspect the shared safety feed, then move into Trade or Protect when action is required.",
-      refreshFeed: "Refresh feed",
+      refreshFeed: "Refresh shared feed",
       refreshing: "Refreshing...",
-      publish: "Publish current incident",
+      publish: "Share current incident",
       publishing: "Publishing...",
       lastUpdated: "Last updated",
-      snapshot: "Today's risk snapshot",
       activeIncidents: "Active incidents",
       criticalIncidents: "Critical incidents",
       degradedIncidents: "Degraded incidents",
@@ -149,7 +148,10 @@ export const COPY = {
       livePoolBoard: "Live pool board",
       noFeed: "No shared safety incidents yet",
       noFeedBody:
-        "Refresh the live board or publish the current incident to begin building a shared watch surface.",
+        "Relay-backed operator incidents will appear here after someone shares one.",
+      sharedFeedTitle: "Shared feed",
+      sharedFeedBody:
+        "Refresh reads operator incidents from relay. Share writes the current incident into that relay-backed feed.",
       currentIncident: "Current incident",
       feedSnapshot: "Feed snapshot",
       currentProfile: "Current action profile",
@@ -424,7 +426,10 @@ export const COPY = {
       livePoolBoard: "실시간 풀 보드",
       noFeed: "공유된 safety incident가 없습니다",
       noFeedBody:
-        "라이브 보드를 새로고침하거나 현재 incident를 발행해 감시 화면을 채우세요.",
+        "누군가 현재 incident를 공유하면 relay 기반 피드에 여기에 나타납니다.",
+      sharedFeedTitle: "공유 피드",
+      sharedFeedBody:
+        "새로고침은 relay에 쌓인 operator incident를 읽고, 공유는 현재 incident를 그 relay 피드에 기록합니다.",
       currentIncident: "현재 incident",
       feedSnapshot: "피드 스냅샷",
       currentProfile: "현재 액션 프로필",

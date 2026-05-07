@@ -3,6 +3,7 @@
 const { createRelayServer } = require("./server");
 const { FileRelayStore, defaultStateFile } = require("./store");
 const { sendWebhook } = require("./notifier");
+const { createWatchService } = require("./watch");
 
 async function main() {
   const port = Number(process.env.FLINT_RELAY_PORT || 8787);
@@ -13,6 +14,7 @@ async function main() {
   const server = createRelayServer({
     store,
     notifier: sendWebhook,
+    watchService: createWatchService(),
   });
 
   server.listen(port, () => {
